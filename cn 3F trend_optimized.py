@@ -3110,15 +3110,8 @@ class Ui_MainWindow(object):
         def plot_signal_data(self):
                 """선택한 채널 & 파일을 반영하여 Waveform 또는 Spectrum을 그래프에 표시"""
 
-                # ========== 최적화 모듈 로드 확인 ==========
-                try:
-                        from file_parser import FileParser
-                        from fft_engine import FFTEngine
-                        USE_OPTIMIZATION = False
-                        perf_logger.log_info("✅ 최적화 모듈 로드 성공")
-                except ImportError as e:
-                        USE_OPTIMIZATION = False
-                        perf_logger.log_warning(f"⚠️ 최적화 모듈 없음, 기본 모드로 실행: {e}")
+                # ========== 최적화 모듈 비활성화 ==========
+                USE_OPTIMIZATION = False
 
                 # ========== 전체 작업 측정 시작 ==========
                 start_total = perf_logger.start_timer("전체 플롯 작업")
@@ -3133,6 +3126,27 @@ class Ui_MainWindow(object):
                         selected_files = [item.text() for item in self.Querry_list.selectedItems()]
                         selected_items = self.Querry_list.selectedItems()
 
+                        # ========== 파일 개수 제한 (안정성) ==========
+                        MAX_FILES = 30
+                        if len(selected_files) > MAX_FILES:
+                                from PyQt5.QtWidgets import QMessageBox
+                                reply = QMessageBox.question(
+                                        None,
+                                        "경고",
+                                        f"선택한 파일이 {len(selected_files)}개입니다.\n"
+                                        f"한 번에 {MAX_FILES}개까지만 처리하는 것을 권장합니다.\n\n"
+                                        f"처음 {MAX_FILES}개만 처리하시겠습니까?",
+                                        QMessageBox.Yes | QMessageBox.No
+                                )
+
+                                if reply == QMessageBox.Yes:
+                                        selected_files = selected_files[:MAX_FILES]
+                                        selected_items = [item for item in selected_items if
+                                                          item.text() in selected_files]
+                                        perf_logger.log_info(f"⚠️ 파일 개수 제한: {len(selected_files)}개만 처리")
+                                else:
+                                        perf_logger.log_warning(f"⚠️ {len(selected_files)}개 파일 처리 시도 (안정성 저하 가능)")
+
                         # ✅ 채널 필터링: 체크된 채널 번호 가져오기
                         selected_channels = []
                         channel = []
@@ -3143,7 +3157,7 @@ class Ui_MainWindow(object):
                         if self.checkBox_5.isChecked(): selected_channels.append("5")
                         if self.checkBox_6.isChecked(): selected_channels.append("6")
 
-                        # ✅ 선택된 파일이 없으면, 채널 필터링에 맞는 모든 파일 표시
+                        # ✅ 선택된 파일이 없으면 오류
                         if not selected_files:
                                 QMessageBox.critical(None, "오류", "파일을 선택하세요")
                                 perf_logger.end_timer("전체 플롯 작업", start_total)
@@ -3201,20 +3215,19 @@ class Ui_MainWindow(object):
                         self.progress_dialog.setWindowModality(Qt.WindowModal)
                         self.progress_dialog.show()
 
-                        # ✅ 각 파일별 sampling_rate 저장할 딕셔너리
+                        # ✅ 각 파일별 데이터 저장할 딕셔너리
                         sampling_rates = {}
                         metadata_dict = {}
-                        spectrum_data_dict = {}  # key = file name, value = spectrum
+                        spectrum_data_dict = {}
                         frequency_array = None
                         file_names_used = []
                         channel_infos = []
-                        first_start_time = None  # ✅ 처음 start_time을 저장할 변수
-                        self.data_dict = {}  # 파일별 (x_data, y_data)
+                        first_start_time = None
+                        self.data_dict = {}
                         x_spec_data = {}
                         y_spec_data = {}
                         self.spec_data_dict = {}
-
-                        channel_data_dict = {}  # 채널별로 데이터를 저장할 딕셔너리
+                        channel_data_dict = {}
 
                         # ========== 파일 로딩 측정 시작 ==========
                         start_loading = perf_logger.start_timer(f"파일 로딩 ({len(selected_files)}개)")
@@ -3223,104 +3236,39 @@ class Ui_MainWindow(object):
                                 file_path = os.path.join(self.directory_path, file_name)
 
                                 # ========== 캐시 확인 ==========
-                                if file_name in self.file_cache:
+                                if hasattr(self, 'file_cache') and file_name in self.file_cache:
                                         # 캐시에서 로드 (빠름!)
                                         cache = self.file_cache[file_name]
                                         data = cache['data']
+                                        record_length = cache['record_length']
                                         sampling_rate = cache['sampling_rate']
                                         dt = cache['dt']
+                                        if first_start_time is None:
+                                                first_start_time = cache['start_time']
+                                        duration = cache['duration']
+                                        rest_time = cache['rest_time']
+                                        repetition = cache['repetition']
+                                        channel_info = cache['channel']
+                                        iepe = cache['iepe']
+                                        b_sensitivity = cache['b_sensitivity']
+                                        sensitivity = cache['sensitivity']
 
-                                        perf_logger.log_info(f"💨 {file_name}: 캐시 사용")
+                                        perf_logger.log_info(f"💨 {file_name}: 캐시 사용 (0.001초)")
+
                                 else:
                                         # 파일 읽기 (느림)
                                         data, record_length = self.load_file_data(file_path)
 
-                                        # ... 메타데이터 파싱 ...
-
-                                        # 캐시에 저장
-                                        self.file_cache[file_name] = {
-                                                'data': data,
-                                                'sampling_rate': sampling_rate,
-                                                'dt': dt,
-                                                # ... (나머지 메타데이터)
-                                        }
-
-                                        perf_logger.log_info(f"💾 {file_name}: 파일 읽고 캐시 저장")
-                                # ========== 🚀 최적화: FileParser 사용 ==========
-                                if USE_OPTIMIZATION:
-                                        try:
-                                                # ✅ 최적화된 파일 로더 사용
-                                                parser = FileParser(file_path)
-                                                data = parser.get_data()
-                                                record_length = parser.get_record_length()
-
-                                                # 메타데이터 한 번에 가져오기
-                                                metadata = parser.get_all_metadata()
-                                                sampling_rate = metadata.get('sampling_rate', 10240.0)
-                                                dt = metadata.get('dt')
-                                                if first_start_time is None:
-                                                        first_start_time = metadata.get('start_time')
-                                                duration = metadata.get('duration')
-                                                rest_time = metadata.get('rest_time')
-                                                repetition = metadata.get('repetition')
-                                                channel_info = metadata.get('channel')
-                                                iepe = metadata.get('iepe')
-                                                b_sensitivity = metadata.get('b_sensitivity')
-                                                sensitivity = metadata.get('sensitivity')
-
-                                        except Exception as e:
-                                                perf_logger.log_warning(f"⚠️ 최적화 로더 실패 ({file_name}): {e}, 기본 모드로 재시도")
-                                                # 실패 시 기존 방식으로
-                                                data, record_length = self.load_file_data(file_path)
-
-                                                # 메타데이터 파싱 (기존 방식)
-                                                dt, duration, rest_time, repetition, channel_info, iepe, b_sensitivity, sensitivity = [None] * 8
-                                                sampling_rate = 10240.0
-
-                                                try:
-                                                        with open(file_path, 'r') as file:
-                                                                for line in file:
-                                                                        if "D.Sampling Freq. " in line:
-                                                                                sampling_rate_str = line.split(":")[
-                                                                                        1].strip()
-                                                                                sampling_rate = float(
-                                                                                        sampling_rate_str.replace("Hz",
-                                                                                                                  "").strip())
-                                                                        elif "Time Resolution(dt)" in line:
-                                                                                dt = line.split(":")[1].strip()
-                                                                        elif "Starting Time" in line:
-                                                                                if first_start_time is None:
-                                                                                        first_start_time = \
-                                                                                        line.split(":")[1].strip()
-                                                                        elif "Record Length" in line:
-                                                                                duration = \
-                                                                                line.split(":")[1].strip().split()[0]
-                                                                        elif "Rest time" in line:
-                                                                                rest_time = \
-                                                                                line.split(":")[1].strip().split()[0]
-                                                                        elif "Repetition" in line:
-                                                                                repetition = line.split(":")[1].strip()
-                                                                        elif "Channel" in line:
-                                                                                channel_info = line.split(":")[
-                                                                                        1].strip()
-                                                                        elif "IEPE enable" in line:
-                                                                                iepe = line.split(":")[1].strip()
-                                                                        elif "b.Sensitivity" in line and b_sensitivity is None:
-                                                                                b_sensitivity = \
-                                                                                line.split(":")[1].strip().split()[0]
-                                                                        elif "Sensitivity" in line:
-                                                                                sensitivity = line.split(":")[1].strip()
-                                                except Exception as e2:
-                                                        print(f"⚠ {file_name} - 메타데이터 파싱 오류: {e2}")
-                                else:
-                                        # ❌ 기존 방식 (최적화 모듈 없을 때)
-                                        data, record_length = self.load_file_data(file_path)
+                                        if data is None or len(data) == 0:
+                                                self.progress_dialog.label.setText(f"{file_name} - 데이터 없음. 건너뜀.")
+                                                self.progress_dialog.update_progress(i + 1)
+                                                continue
 
                                         # 초기값 설정
                                         dt, duration, rest_time, repetition, channel_info, iepe, b_sensitivity, sensitivity = [None] * 8
                                         sampling_rate = 10240.0
 
-                                        # ✅ 개별 파일의 샘플링 레이트 읽기
+                                        # ✅ 개별 파일의 메타데이터 읽기
                                         try:
                                                 with open(file_path, 'r') as file:
                                                         for line in file:
@@ -3354,10 +3302,32 @@ class Ui_MainWindow(object):
                                         except Exception as e:
                                                 print(f"⚠ {file_name} - 메타데이터 파싱 오류: {e}")
 
-                                if data is None or len(data) == 0:
-                                        self.progress_dialog.label.setText(f"{file_name} - 데이터 없음. 건너뜀.")
-                                        self.progress_dialog.update_progress(i + 1)
-                                        continue
+                                        # ========== 캐시에 저장 ==========
+                                        if not hasattr(self, 'file_cache'):
+                                                self.file_cache = {}
+
+                                        self.file_cache[file_name] = {
+                                                'data': data.copy() if isinstance(data, np.ndarray) else data,
+                                                'record_length': record_length,
+                                                'sampling_rate': sampling_rate,
+                                                'dt': dt,
+                                                'start_time': first_start_time,
+                                                'duration': duration,
+                                                'rest_time': rest_time,
+                                                'repetition': repetition,
+                                                'channel': channel_info,
+                                                'iepe': iepe,
+                                                'b_sensitivity': b_sensitivity,
+                                                'sensitivity': sensitivity
+                                        }
+
+                                        # 캐시 크기 제한 (100개)
+                                        if len(self.file_cache) > 100:
+                                                oldest_key = next(iter(self.file_cache))
+                                                del self.file_cache[oldest_key]
+                                                perf_logger.log_info(f"🗑️ 캐시 정리: {oldest_key} 제거")
+
+                                        perf_logger.log_info(f"💾 {file_name}: 파일 읽고 캐시 저장")
 
                                 # ========== 메모리 정리 (10개마다) ==========
                                 if (i + 1) % 10 == 0:
@@ -3367,8 +3337,8 @@ class Ui_MainWindow(object):
                                 self.progress_dialog.label.setText(
                                         f"{file_name} 처리 중... ({i + 1}/{len(selected_files)})")
 
-                                color = colors[i % len(colors)]  # 채널별 색상 지정
-                                sampling_rates[file_name] = sampling_rate  # 딕셔너리에 저장
+                                color = colors[i % len(colors)]
+                                sampling_rates[file_name] = sampling_rate
                                 metadata_dict[file_name] = {
                                         "sampling_rate": sampling_rate,
                                         "file_path": file_path,
@@ -3403,21 +3373,43 @@ class Ui_MainWindow(object):
                                         if not isinstance(data, np.ndarray) or len(data) == 0:
                                                 continue
 
-                                        # ✅ 숫자만 추출하여 float 변환
+                                        # ========== 안전한 숫자 추출 함수 ==========
                                         def extract_numeric_value(s):
-                                                match = re.search(r"[-+]?[0-9]*\.?[0-9]+", s)
-                                                return float(match.group()) if match else None
+                                                """None과 빈 값을 안전하게 처리하는 숫자 추출"""
+                                                if s is None:
+                                                        return None
+                                                if isinstance(s, (int, float)):
+                                                        return float(s)
+                                                try:
+                                                        match = re.search(r"[-+]?[0-9]*\.?[0-9]+", str(s))
+                                                        return float(match.group()) if match else None
+                                                except:
+                                                        return None
 
-                                        # b.Sensitivity와 Sensitivity 존재 시 계산
-                                        if b_sensitivity and sensitivity:
-                                                b_sens = extract_numeric_value(b_sensitivity)
-                                                sens = extract_numeric_value(sensitivity)
-                                                if b_sens is not None and sens is not None and sens != 0:
-                                                        scaled_data = (b_sens / sens) * data
+                                        # ========== 민감도 보정 (안전 처리) ==========
+                                        try:
+                                                if b_sensitivity is not None and sensitivity is not None:
+                                                        b_sens = extract_numeric_value(b_sensitivity)
+                                                        sens = extract_numeric_value(sensitivity)
+
+                                                        if b_sens is not None and sens is not None and sens != 0:
+                                                                scaling_factor = b_sens / sens
+                                                                scaled_data = scaling_factor * data
+                                                                perf_logger.log_info(
+                                                                        f"✓ {file_name}: 민감도 보정 ({b_sens:.2f}/{sens:.2f})")
+                                                        else:
+                                                                scaled_data = data
+                                                                perf_logger.log_warning(
+                                                                        f"⚠️ {file_name}: 민감도 값 추출 실패, 원본 사용")
                                                 else:
                                                         scaled_data = data
-                                        else:
+                                                        if b_sensitivity is None:
+                                                                perf_logger.log_info(
+                                                                        f"ℹ️ {file_name}: b.Sensitivity 없음, 원본 사용")
+
+                                        except Exception as e:
                                                 scaled_data = data
+                                                perf_logger.log_warning(f"⚠️ {file_name}: 민감도 보정 오류, 원본 사용")
 
                                         if sampling_rate / delta_f > np.atleast_2d(data).shape[0]:
                                                 text = self.Duration_view.toPlainText().strip()
@@ -3431,85 +3423,26 @@ class Ui_MainWindow(object):
                                                 QMessageBox.critical(None, "안내",
                                                                      f"delt_f의 입력값이 너무 작아 {hz_value}로 치환 되었습니다!")
 
-                                        # ========== 🚀 최적화: FFTEngine 사용 ==========
+                                        # ========== FFT 계산 측정 ==========
                                         start_fft = perf_logger.start_timer(f"FFT 계산 ({file_name})")
 
-                                        if USE_OPTIMIZATION:
-                                                try:
-                                                        # ✅ 최적화된 FFT 엔진 사용
-                                                        fft_engine = FFTEngine(
-                                                                sampling_rate=sampling_rate,
-                                                                delta_f=delta_f,
-                                                                overlap=overlap,
-                                                                window_type=window_type
-                                                        )
+                                        type_flag = 2
+                                        try:
+                                                w, f, P, ACF, ECF, rms_w, Sxx = self.mdl_FFT_N(
+                                                        type_flag, sampling_rate, scaled_data, delta_f, overlap,
+                                                        1 if window_type == "hanning" else 2 if window_type == "flattop" else 0,
+                                                        1, view_type, 0
+                                                )
 
-                                                        result = fft_engine.compute(
-                                                                data=scaled_data,
-                                                                view_type=view_type,
-                                                                type_flag=2
-                                                        )
+                                                perf_logger.end_timer(f"FFT 계산 ({file_name})", start_fft)
 
-                                                        # 결과 추출
-                                                        f = result['frequency']
-                                                        P = result['spectrum']
-                                                        ACF = result['acf']
-                                                        ECF = result.get('ecf', 1.0)
-                                                        rms_w = result.get('rms', 0.0)
-                                                        Sxx = result.get('psd', None)
-
-                                                        perf_logger.end_timer(f"FFT 계산 ({file_name})", start_fft)
-
-                                                        if np.all(np.abs(P) == 0) or np.isnan(np.abs(P)).any():
-                                                                continue
-
-                                                except Exception as e:
-                                                        perf_logger.end_timer(f"FFT 계산 ({file_name})", start_fft)
-                                                        perf_logger.log_warning(
-                                                                f"⚠️ 최적화 FFT 실패 ({file_name}): {e}, 기본 모드로 재시도")
-
-                                                        # 실패 시 기존 FFT로
-                                                        start_fft_fallback = perf_logger.start_timer(
-                                                                f"FFT 계산 (기본, {file_name})")
-
-                                                        type_flag = 2
-                                                        try:
-                                                                w, f, P, ACF, ECF, rms_w, Sxx = self.mdl_FFT_N(
-                                                                        type_flag, sampling_rate, scaled_data, delta_f,
-                                                                        overlap,
-                                                                        1 if window_type == "hanning" else 2 if window_type == "flattop" else 0,
-                                                                        1, view_type, 0
-                                                                )
-                                                                perf_logger.end_timer(f"FFT 계산 (기본, {file_name})",
-                                                                                      start_fft_fallback)
-
-                                                                if np.all(np.abs(P) == 0) or np.isnan(np.abs(P)).any():
-                                                                        continue
-
-                                                        except Exception as e2:
-                                                                perf_logger.end_timer(f"FFT 계산 (기본, {file_name})",
-                                                                                      start_fft_fallback)
-                                                                perf_logger.log_error(f"❌ {file_name} FFT 완전 실패: {e2}")
-                                                                continue
-                                        else:
-                                                # ❌ 기존 FFT (최적화 모듈 없을 때)
-                                                type_flag = 2
-                                                try:
-                                                        w, f, P, ACF, ECF, rms_w, Sxx = self.mdl_FFT_N(
-                                                                type_flag, sampling_rate, scaled_data, delta_f, overlap,
-                                                                1 if window_type == "hanning" else 2 if window_type == "flattop" else 0,
-                                                                1, view_type, 0
-                                                        )
-
-                                                        perf_logger.end_timer(f"FFT 계산 ({file_name})", start_fft)
-
-                                                        if np.all(np.abs(P) == 0) or np.isnan(np.abs(P)).any():
-                                                                continue
-
-                                                except Exception as e:
-                                                        perf_logger.end_timer(f"FFT 계산 ({file_name})", start_fft)
-                                                        perf_logger.log_warning(f"❌ {file_name} FFT 실패: {e}")
+                                                if np.all(np.abs(P) == 0) or np.isnan(np.abs(P)).any():
                                                         continue
+
+                                        except Exception as e:
+                                                perf_logger.end_timer(f"FFT 계산 ({file_name})", start_fft)
+                                                perf_logger.log_warning(f"❌ {file_name} FFT 실패: {e}")
+                                                continue
 
                                         frequency_array = f
                                         spectrum_data_dict[file_name] = ACF * np.abs(P)
@@ -3575,54 +3508,62 @@ class Ui_MainWindow(object):
                         self.ax.grid(True)
                         self.waveax.grid(True)
 
-                        # ✅ 메모리 효율적인 그래프 업데이트
-                        self.wavecanvas.draw_idle()
-                        self.canvas.draw_idle()
+                        # ========== 안전한 그래프 렌더링 ==========
+                        try:
+                                self.wavecanvas.flush_events()
+                                self.canvas.flush_events()
+
+                                self.wavecanvas.draw_idle()
+                                self.canvas.draw_idle()
+
+                                from PyQt5.QtWidgets import QApplication
+                                QApplication.processEvents()
+
+                        except Exception as e:
+                                perf_logger.log_warning(f"⚠️ 그래프 렌더링 오류: {e}")
 
                         perf_logger.end_timer("그래프 렌더링", start_render)
 
-                        # ✅ 범례 추가 (데이터가 있을 경우만)
+                        # ✅ 범례 추가
                         if legends:
-                                legend_labels = [f"{name}" for name, color in legends]
-                                legend_patches = [plt.Line2D([0], [0], color=color, lw=2) for _, color in legends]
-                                self.ax.legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize=7)
+                                try:
+                                        self.ax.legend(loc="upper left", bbox_to_anchor=(1, 1), fontsize=7)
+                                except:
+                                        pass
 
-                                # ✅ 마우스 이벤트 리스너 연결
-                        self.cid_move = self.canvas.mpl_connect("motion_notify_event", self.on_mouse_move)
-                        self.cid_click = self.canvas.mpl_connect("button_press_event", self.on_mouse_click)
-                        self.cid_key = self.canvas.mpl_connect("key_press_event", self.on_key_press)
-
-                        # ✅ 마우스 이벤트 리스너 연결
-
-                        # 🔴 중요: 기존 연결 먼저 해제 (중복 방지)
+                        # ========== 안전한 마우스 이벤트 연결 ==========
                         try:
                                 if hasattr(self, 'cid_move') and self.cid_move is not None:
                                         self.canvas.mpl_disconnect(self.cid_move)
+                                        self.cid_move = None
                         except:
                                 pass
 
                         try:
                                 if hasattr(self, 'cid_click') and self.cid_click is not None:
                                         self.canvas.mpl_disconnect(self.cid_click)
+                                        self.cid_click = None
                         except:
                                 pass
 
                         try:
                                 if hasattr(self, 'cid_key') and self.cid_key is not None:
                                         self.canvas.mpl_disconnect(self.cid_key)
+                                        self.cid_key = None
                         except:
                                 pass
 
-                                # 새로 연결
-                        self.cid_move = self.canvas.mpl_connect("motion_notify_event", self.on_mouse_move)
-                        self.cid_click = self.canvas.mpl_connect("button_press_event", self.on_mouse_click)
-                        self.cid_key = self.canvas.mpl_connect("key_press_event", self.on_key_press)
+                        try:
+                                self.cid_move = self.canvas.mpl_connect("motion_notify_event", self.on_mouse_move)
+                                self.cid_click = self.canvas.mpl_connect("button_press_event", self.on_mouse_click)
+                                self.cid_key = self.canvas.mpl_connect("key_press_event", self.on_key_press)
 
-                        self.hover_dot2 = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
-                        self.spec_file_names = [item.text() for item in selected_items]
+                                self.hover_dot2 = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
+                                self.spec_file_names = [item.text() for item in selected_items]
+                        except Exception as e:
+                                perf_logger.log_warning(f"⚠️ 이벤트 연결 오류: {e}")
 
                         if "Spectrum":
-                                # 대신 데이터를 인스턴스 변수로 저장
                                 self.spectrum_data_dict1 = spectrum_data_dict
                                 self.frequency_array1 = frequency_array
                                 self.file_names_used1 = file_names_used
@@ -3647,22 +3588,19 @@ class Ui_MainWindow(object):
                         # ========== 전체 작업 측정 종료 ==========
                         perf_logger.end_timer("전체 플롯 작업", start_total)
 
-                        # ========== 최종 메모리 정리 ==========
-                        import gc
+                        # ========== 최종 안정화 ==========
                         gc.collect()
+                        QApplication.processEvents()
 
-                        from PyQt5.QtWidgets import QApplication
-                        QApplication.processEvents()  # Qt 이벤트 처리
+                        import time
+                        time.sleep(0.05)
+
+                        perf_logger.log_info("✅ 그래프 표시 완료 및 안정화")
 
                 except Exception as e:
-                        # ✅ 실패 시에도 종료
                         perf_logger.end_timer("전체 플롯 작업", start_total)
-
-                        # 메모리 정리
-                        import gc
                         gc.collect()
-
-                        raise  # 에러는 다시 발생시킴
+                        raise
                 
         def plot_next_file(self):
                 current_items = self.Querry_list.selectedItems()

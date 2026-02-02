@@ -265,7 +265,7 @@ pyinstaller --onefile --windowed \
 ```python
 # audio_analysis.spec 수정
 a = Analysis(
-    ['cn 3F trend_optimized.py'],
+    ['cn_3F_trend_optimized.py'],
     datas=[
         ('/System/Library/Fonts/Supplemental/AppleGothic.ttf', 'fonts'),
     ],

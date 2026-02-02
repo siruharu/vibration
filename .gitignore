@@ -320,4 +320,8 @@ $RECYCLE.BIN/
 # Windows shortcuts
 *.lnk
 
+dist
+build
+test_data
+
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,pycharm+all,python

@@ -154,7 +154,7 @@ if __name__ == "__main__":
     
     if len(sys.argv) < 2:
         print("사용법:")
-        print("  python bug_fix.py 'cn 3F trend_optimized.py'")
+        print("  python bug_fix.py 'cn_3F_trend_optimized.py'")
         sys.exit(1)
     
     source_file = sys.argv[1]

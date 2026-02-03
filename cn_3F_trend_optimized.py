@@ -149,7 +149,12 @@ class ListSaveDialog(QtWidgets.QDialog):
 
         self.progress_dialog = None  # 진행률 창 초기화
         self.directory_path = directory_path  # ✅ 메인 윈도우에서 전달받은 경로 저장
-        file_path2 = self.directory_path
+
+        # ⭐ 데이터 저장용 딕셔너리 초기화
+        self.data_dict = {}
+        self.spectrum_data_dict1 = {}
+        self.file_names_used1 = []
+        self.sample_rate1 = {}
 
         self.tab_layout = QtWidgets.QGridLayout()
         self.layout = QtWidgets.QHBoxLayout()
@@ -445,23 +450,42 @@ class ListSaveDialog(QtWidgets.QDialog):
         total_files = len(selected_items)
 
         if total_files == 0:
+            QtWidgets.QMessageBox.warning(self, "경고", "파일을 선택하세요")
             return
+
         # ✅ ProgressDialog 생성 및 띄우기
         progress_dialog = ProgressDialog(total_files, self)
         progress_dialog.setModal(True)  # 사용자 입력 막기 (선택사항)
         progress_dialog.show()
 
-        for i, item in enumerate(selected_items):
-            selected_file = item.text()
-            self.load_and_plot_file(selected_file)
-            progress_dialog.update_progress(i + 1)
+        try:
+            for i, item in enumerate(selected_items):
+                selected_file = item.text()
 
-        # ✅ 완료 후 창 닫기
-        progress_dialog.label.setText("완료되었습니다.")
-        QtWidgets.QApplication.processEvents()
-        QtCore.QThread.msleep(300)  # 조금 보여주고 닫기
-        progress_dialog.close()
-        self.finalize_plot()
+                # ⭐ 안전하게 파일 로드
+                try:
+                    self.load_and_plot_file(selected_file)
+                except Exception as e:
+                    print(f"⚠️ {selected_file} 처리 오류: {e}")
+                    import traceback
+                    traceback.print_exc()
+
+                progress_dialog.update_progress(i + 1)
+                QtWidgets.QApplication.processEvents()
+                progress_dialog.label.setText("완료되었습니다.")
+                QtCore.QThread.msleep(300)  # 조금 보여주고 닫기
+                progress_dialog.close()
+
+            # 완료 후 그래프 마무리
+            self.finalize_plot()
+
+        except Exception as e:
+            print(f"❌ 전체 처리 오류: {e}")
+            import traceback
+            traceback.print_exc()
+        finally:
+            progress_dialog.close()
+
 
     def clear_all_graphs(self):
         self.tab_waveax.clear()
@@ -671,134 +695,168 @@ class ListSaveDialog(QtWidgets.QDialog):
                 val = default
         return val
 
-    def load_and_plot_file(self, file_path):
-        # 전체 경로
+    def load_and_plot_file(self, file_name):
+        """개별 파일 로드 및 플로팅"""
+
+        # ⭐ 전체 경로 생성 (변수명 통일)
         if hasattr(self, 'directory_path') and self.directory_path:
-            file_path = os.path.join(self.directory_path, file_path)
+            file_path = os.path.join(self.directory_path, file_name)
+        else:
+            file_path = file_name
+
+        # ⭐ 파일 존재 확인
+        if not os.path.exists(file_path):
+            print(f"⚠️ 파일 없음: {file_path}")
+            return
 
         base_name = os.path.splitext(os.path.basename(file_path))[0]
 
-        # JSON 경로
-        # JSON 경로를 항상 trend_data 폴더 안으로 지정
-        json_folder = os.path.join(self.directory_path, "trend_data", "full") if hasattr(self,
-                                                                                         'directory_path') else "trend_data"
-        json_path = os.path.join(json_folder, f"{base_name}_full.json")
+        # ===== JSON에서 메타데이터 읽기 =====
+        json_folder = os.path.join(self.directory_path, "trend_data") if self.directory_path else "trend_data"
+        json_path = os.path.join(json_folder, f"{base_name}.json")
 
-        # 확인용 출력
-        print("JSON 경로:", json_path)
-        # JSON 읽기
         metadata = {}
         if os.path.exists(json_path):
             try:
-                with open(json_path, 'r') as f:
-                    metadata = load_json(f)
+                # ⭐ 수정: 파일 경로를 직접 전달 (파일 객체 X)
+                metadata = load_json(json_path)
+                print(f"✅ JSON 로드 성공: {json_path}")
             except Exception as e:
-                QtWidgets.QMessageBox.warning(None, "JSON 오류", f"{json_path}\n\n{str(e)}")
+                print(f"⚠️ JSON 읽기 오류: {json_path}, {e}")
+                import traceback
+                traceback.print_exc()
+        else:
+            print(f"⚠️ JSON 파일 없음: {json_path}")
 
-        # TXT 파일에서 waveform 데이터 읽기
+            # ===== TXT 파일에서 데이터 로드 =====
         try:
-            data = self.load_txt_file_only(file_path)
+            # ⭐ 수정: 직접 파일 읽기 (메타데이터 건너뛰기)
+            with open(file_path, 'r', encoding='utf-8') as f:
+                lines = f.readlines()
+
+            # 숫자만 있는 줄만 추출
+            data = []
+            for line in lines:
+                line = line.strip()
+                if not line:
+                    continue
+                # 숫자로 시작하는 줄만 (메타데이터 제외)
+                if re.match(r'^[-+]?\d*\.?\d+([eE][-+]?\d+)?$', line):
+                    try:
+                        data.append(float(line))
+                    except:
+                        continue
+
+            data = np.array(data)
+
+            if len(data) == 0:
+                print(f"⚠️ 데이터 파싱 실패: {file_name}")
+                return
+
+            print(f"ℹ️ {file_name}: 데이터 {len(data)}개 로드됨")
+
         except Exception as e:
-            QtWidgets.QMessageBox.critical(None, "파일 오류", f"{file_path}\n\n{str(e)}")
+            print(f"❌ 파일 로드 실패: {file_path}, {e}")
             return
 
         if data is None or len(data) == 0:
-            QtWidgets.QMessageBox.warning(None, "데이터 없음", f"{base_name} 파일에 데이터가 없습니다.")
+            print(f"⚠️ 데이터 없음: {file_name}")
             return
 
-        # ----------------------------
-        # JSON 우선으로 값 가져오기
-        # ----------------------------
+        # ===== 파라미터 추출 =====
         sampling_rate = self.get_json_value(metadata, "sampling_rate", value_type=float)
-        print(f"!!!!!!!!!!{sampling_rate}")
         delta_f = self.get_json_value(metadata, "delta_f", value_type=float)
-        print(f"!!!!!!!!!!{delta_f}")
         overlap = self.get_json_value(metadata, "overlap", value_type=float)
-        print(f"!!!!!!!!!!{overlap}")
-        window_str = self.get_json_value(metadata, "window", default="hanning", value_type=str).lower()
-        print(f"!!!!!!!!!!{window_str}")
-        view_type_str = self.get_json_value(metadata, "view_type", default="ACC", value_type=str).upper()
-        print(f"!!!!!!!!!!{view_type_str}")
-        b_sensitivity = self.get_json_value(metadata, "b_sensitivity", value_type=None)
-        print(f"!!!!!!!!!!{b_sensitivity}")
-        sensitivity = self.get_json_value(metadata, "sensitivity", value_type=None)
-        print(f"!!!!!!!!!!{sensitivity}")
-        start_time = self.get_json_value(metadata, "start_time", value_type=str)
-        print(f"!!!!!!!!!!{start_time}")
-        duration_str = self.get_json_value(metadata, "duration", value_type=str)
-        print(f"!!!!!!!!!!{duration_str}")
-        rest_time = self.get_json_value(metadata, "rest_time", value_type=str)
-        print(f"!!!!!!!!!!{rest_time}")
-        repetition = self.get_json_value(metadata, "repetition", value_type=str)
-        print(f"!!!!!!!!!!{repetition}")
-        iepe = self.get_json_value(metadata, "iepe", value_type=str)
-        print(f"!!!!!!!!!!{iepe}")
-        channel_num = self.get_json_value(metadata, "channel_num", value_type=str)
-        print(f"!!!!!!!!!!{channel_num}")
-        filename_json = self.get_json_value(metadata, "filename", value_type=str)
-        print(f"!!!!!!!!!!{filename_json}")
-        # ----------------------------
-        # 윈도우 플래그
-        # ----------------------------
-        win_flag = {"rectangular": 0, "hanning": 1, "flattop": 2}.get(window_str, 1)
+        window_str = self.get_json_value(metadata, "window", default="hanning", value_type=str)
+        view_type_str = self.get_json_value(metadata, "view_type", default="ACC", value_type=str)
 
-        # View Type
-        conv2sgnl = {"ACC": 1, "VEL": 2, "DIS": 3}.get(view_type_str, 1)
+        b_sensitivity = self.get_json_value(metadata, "b_sensitivity", value_type=str)
+        sensitivity = self.get_json_value(metadata, "sensitivity", value_type=str)
 
-        # 민감도 보정
-        if b_sensitivity is not None and sensitivity is not None:
-            try:
-                b_sens_match = re.findall(r"[-+]?[0-9]*\.?[0-9]+", str(b_sensitivity))
-                sens_match = re.findall(r"[-+]?[0-9]*\.?[0-9]+", str(sensitivity))
-                if b_sens_match and sens_match:
-                    b_sens = float(b_sens_match[0])
-                    sens = float(sens_match[0])
-                    if sens != 0:
-                        data = (b_sens / sens) * data
-            except Exception as e:
-                print(f"⚠ 민감도 스케일 오류: {e}")
+        # 디버그 출력 제거 (불필요한 !!!!!!! 로그)
+        # print(f"!!!!!!!!!!{sampling_rate}") <- 이런 것들 전부 제거
 
-        # ----------------------------
-        # FFT 최소 길이 1024 보장
-        # ----------------------------
-        MIN_FFT_LENGTH = 1024
-        N = len(data)
-        if sampling_rate is None:
-            QMessageBox.critical(None, "오류", "sampling_rate가 없습니다.")
+        # ⭐ 필수 파라미터 검증
+        if sampling_rate is None or sampling_rate <= 0:
+            print(f"⚠️ {file_name}: sampling_rate 없음 또는 유효하지 않음")
             return
 
-        if delta_f is None:
-            delta_f = 1.0
+        if delta_f is None or delta_f <= 0:
+            delta_f = 1.0  # 기본값
 
-        delta_f_min = sampling_rate / max(N, MIN_FFT_LENGTH)
+        if overlap is None:
+            overlap = 50.0  # 기본값
 
-        # duration 기반 재계산
+        # ===== 민감도 보정 =====
+        def extract_numeric(s):
+            if s is None:
+                return None
+            match = re.search(r"[-+]?[0-9]*\.?[0-9]+", str(s))
+            return float(match.group()) if match else None
+
+        try:
+            if b_sensitivity and sensitivity:
+                b_sens = extract_numeric(b_sensitivity)
+                sens = extract_numeric(sensitivity)
+                if b_sens and sens and sens != 0:
+                    data = (b_sens / sens) * data
+        except Exception as e:
+            print(f"⚠️ 민감도 보정 오류: {e}")
+
+        # ===== FFT 최소 길이 보장 =====
+        # ===== Delta_f 계산 (중요!) =====
+        N = len(data)
+
+        # ⭐ 1단계: 실제 데이터 기반 최소 delta_f
+        delta_f_min = sampling_rate / N
+        print(f"ℹ️ {file_name}: N={N}, delta_f_min={delta_f_min:.2f}")
+
+        # ⭐ 2단계: JSON에서 읽은 delta_f 검증
+        if delta_f is None or delta_f <= 0:
+            delta_f = max(1.0, delta_f_min)
+            print(f"⚠️ {file_name}: delta_f 없음, 기본값 사용 ({delta_f:.2f})")
+        elif delta_f < delta_f_min:
+            print(f"⚠️ {file_name}: delta_f 너무 작음 ({delta_f:.2f} → {delta_f_min:.2f})")
+            delta_f = delta_f_min
+
+        # ⭐ 3단계: Duration 기반 재계산
+        duration_str = self.get_json_value(metadata, "duration", value_type=str)
         if duration_str:
             match = re.findall(r"[-+]?\d*\.\d+|\d+", duration_str)
             if match:
                 duration_val = float(match[0])
                 if duration_val > 0:
                     hz_value = round(1 / duration_val + 0.01, 2)
-                    delta_f = max(delta_f_min, hz_value)
-        else:
-            delta_f = max(delta_f, delta_f_min)
+                    delta_f = max(delta_f, hz_value)
 
-        # FFT 길이 계산 및 제로 패딩
-        N_fft = max(int(sampling_rate / delta_f), MIN_FFT_LENGTH)
+        # ⭐ 4단계: Zero Padding (필요시)
+        N_fft = int(sampling_rate / delta_f)
         if N_fft > N:
+            print(f"ℹ️ {file_name}: Zero padding ({N} → {N_fft})")
             data = np.pad(data, (0, N_fft - N), 'constant')
             N = N_fft
 
-        # ----------------------------
-        # FFT 계산
-        # ----------------------------
+        # ⭐ 5단계: 최종 검증
+        delta_f_final = sampling_rate / N
+        if delta_f < delta_f_final:
+            print(f"⚠️ {file_name}: 최종 보정 ({delta_f:.2f} → {delta_f_final:.2f})")
+            delta_f = delta_f_final
+
+        # ===== FFT 계산 =====
         try:
-            type_flag = 2
-            win_flag = {"rectangular": 0, "hanning": 1, "flattop": 2}.get(window_str, 1)
-            conv2sgnl = {"ACC": 1, "VEL": 2, "DIS": 3}.get(view_type_str, 1)
+            # ⭐ 최종 검증
+            actual_min_delta_f = sampling_rate / len(data)
+            if delta_f < actual_min_delta_f:
+                print(f"⚠️ {file_name}: 최종 delta_f 보정 ({delta_f:.2f} → {actual_min_delta_f:.2f})")
+                delta_f = actual_min_delta_f
+
+            view_type_map = {"ACC": 1, "VEL": 2, "DIS": 3}
+            conv2sgnl = view_type_map.get(view_type_str.upper(), 1)
+
+            win_flag = {"rectangular": 0, "hanning": 1, "flattop": 2}.get(window_str.lower(), 1)
 
             w, f, P, ACF, ECF, rms_w, Sxx = self.mdl_FFT_N(
-                type_flag,
+                2,  # type_flag
                 sampling_rate,
                 data,
                 delta_f,
@@ -806,69 +864,88 @@ class ListSaveDialog(QtWidgets.QDialog):
                 win_flag,
                 1,  # 입력 신호: 가속도
                 conv2sgnl,
-                0  # Zero padding 없음 (이미 패딩)
+                0  # Zero padding 없음
             )
         except Exception as e:
-            QtWidgets.QMessageBox.critical(None, "FFT 오류", f"{base_name} 처리 중 오류:\n\n{str(e)}")
+            print(f"❌ FFT 계산 오류: {file_name}, {e}")
+            import traceback
+            traceback.print_exc()
             return
 
-        # ----------------------------
-        # 파형 플로팅
-        # ----------------------------
+        # ===== 그래프 데이터 준비 =====
         time = np.arange(len(data)) / sampling_rate
-        color = next(self.color_cycle)
-        self.tab_waveax.plot(time, data, label=base_name, color=color, linewidth=0.5)
 
-        # 스펙트럼 플로팅
-        spectrum = ACF * np.abs(P)
-        self.tab_ax.plot(f, spectrum, label=base_name, color=color, linewidth=0.5)
+        # ⭐ P가 2D인 경우 처리
+        if P.ndim > 1:
+            P = P[:, 0] if P.shape[1] > 0 else P.flatten()
 
-        # ----------------------------
-        # 내부 데이터 저장
-        # ----------------------------
+        spectrum = ACF * np.abs(P).flatten()
+
+        # ⭐ 색상 선택
+        try:
+            color = next(self.color_cycle)
+        except:
+            self.color_cycle = itertools.cycle(plt.cm.tab10.colors)
+            color = next(self.color_cycle)
+
+        # ===== Waveform 플로팅 =====
+        try:
+            self.tab_waveax.plot(time, data, label=base_name, color=color, linewidth=0.5)
+        except Exception as e:
+            print(f"⚠️ Waveform 플로팅 오류: {e}")
+
+        # ===== Spectrum 플로팅 =====
+        try:
+            self.tab_ax.plot(f, spectrum, label=base_name, color=color, linewidth=0.5)
+        except Exception as e:
+            print(f"⚠️ Spectrum 플로팅 오류: {e}")
+
+        # ===== 데이터 저장 =====
         if not hasattr(self, 'spectrum_data_dict1'):
             self.spectrum_data_dict1 = {}
-        if not hasattr(self, 'frequency_array1'):
-            self.frequency_array1 = None
         if not hasattr(self, 'file_names_used1'):
             self.file_names_used1 = []
         if not hasattr(self, 'sample_rate1'):
             self.sample_rate1 = {}
+        if not hasattr(self, 'data_dict'):
+            self.data_dict = {}
 
         self.spectrum_data_dict1[base_name] = spectrum
         self.frequency_array1 = f
         self.file_names_used1.append(base_name)
         self.sample_rate1[base_name] = sampling_rate
+        self.data_dict[file_path] = (f, spectrum)
 
         # 메타데이터 저장
         self.delta_f1 = delta_f
         self.window_type1 = window_str
         self.overlap1 = overlap
-        self.start_time1 = start_time
-        self.Duration1 = duration_str
-        self.Rest_time1 = rest_time
-        self.repetition1 = repetition
-        self.IEPE1 = iepe
-        self.Sensitivity1 = sensitivity
-        self.b_Sensitivity1 = b_sensitivity
-        self.dt1 = self.get_json_value(metadata, "dt", default=None, value_type=str)
-        self.channel_info1 = channel_num
+        self.view_type = view_type_str
+
+        # 추가 메타데이터
+        self.dt1 = self.get_json_value(metadata, "dt", default="", value_type=str)
+        self.start_time1 = self.get_json_value(metadata, "start_time", default="", value_type=str)
+        self.Duration1 = self.get_json_value(metadata, "duration", default="", value_type=str)
+        self.Rest_time1 = self.get_json_value(metadata, "rest_time", default="", value_type=str)
+        self.repetition1 = self.get_json_value(metadata, "repetition", default="", value_type=str)
+        self.IEPE1 = self.get_json_value(metadata, "iepe", default="", value_type=str)
+        self.Sensitivity1 = self.get_json_value(metadata, "sensitivity", default="", value_type=str)
+        self.b_Sensitivity1 = self.get_json_value(metadata, "b_sensitivity", default="", value_type=str)
+        self.channel_info1 = self.get_json_value(metadata, "channel_num", default="", value_type=str)
         self.file_name1 = base_name
 
-        self.data_dict[file_path] = (f, spectrum)
-
-        # ----------------------------
-        # Y축 라벨
-        # ----------------------------
-        view_labels = {1: "Vibration Acceleration \n (m/s², RMS)",
-                       2: "Vibration Velocity \n (mm/s, RMS)",
-                       3: "Vibration Displacement \n (μm, RMS)"}
+        # Y축 라벨 설정
+        view_labels = {
+            1: "Vibration Acceleration\n(m/s², RMS)",
+            2: "Vibration Velocity\n(mm/s, RMS)",
+            3: "Vibration Displacement\n(μm, RMS)"
+        }
         ylabel = view_labels.get(conv2sgnl, "Vibration (mm/s, RMS)")
+
         self.tab_ax.set_ylabel(ylabel, fontsize=7, fontname='Malgun Gothic')
         self.tab_waveax.set_ylabel(ylabel, fontsize=7, fontname='Malgun Gothic')
 
-        self.tab_ax.legend(fontsize=7)
-        self.tab_waveax.legend(fontsize=7)
+        print(f"✅ {file_name} 처리 완료")
 
     def finalize_plot(self):
         self.tab_waveax.set_title("Waveform", fontsize=7, fontname='Malgun Gothic')
@@ -1131,17 +1208,37 @@ class ListSaveDialog(QtWidgets.QDialog):
             print("")
 
     def auto_scale_x(self):
-        ax = self.tab_canvas.figure.axes[0]  # matplotlib 축 객체
-        self.tab_auto_spectrum_x.setChecked(True)
-        self.tab_auto_spectrum_y.setChecked(True)
+        """Spectrum X축 Auto Scale - 입력 필드 비우기"""
+        for marker, label in self.markers:
+            marker.remove()
+            label.remove()
+        self.markers.clear()
+
+        # ⭐ 입력 필드 비우기
+        self.spectrum_x_min_input.clear()
+        self.spectrum_x_max_input.clear()
+
+        ax = self.canvas.figure.axes[0]
+        self.auto_spectrum_x.setChecked(True)
+        self.auto_spectrum_y.setChecked(True)
         ax.autoscale(enable=True, axis='x')
-        self.tab_canvas.draw()
+        self.canvas.draw()
 
     def auto_scale_y(self):
-        ax = self.tab_canvas.figure.axes[0]  # matplotlib 축 객체
-        self.tab_auto_spectrum_y.setChecked(True)
+        """Spectrum Y축 Auto Scale - 입력 필드 비우기"""
+        for marker, label in self.markers:
+            marker.remove()
+            label.remove()
+        self.markers.clear()
+
+        # ⭐ 입력 필드 비우기
+        self.spectrum_y_min_input.clear()
+        self.spectrum_y_max_input.clear()
+
+        ax = self.canvas.figure.axes[0]
+        self.auto_spectrum_y.setChecked(True)
         ax.autoscale(enable=True, axis='y')
-        self.tab_canvas.draw()
+        self.canvas.draw()
 
     def set_wave_x_axis(self):
         try:
@@ -1189,17 +1286,27 @@ class ListSaveDialog(QtWidgets.QDialog):
             print("")
 
     def auto_wave_scale_x(self):
-        ax = self.tab_wavecanvas.figure.axes[0]  # matplotlib 축 객체
-        self.tab_auto_wave_x.setChecked(True)
-        self.tab_auto_wave_y.setChecked(True)
+        """Waveform X축 Auto Scale - 입력 필드 비우기"""
+        # ⭐ 입력 필드 비우기
+        self.x_min_input.clear()
+        self.x_max_input.clear()
+
+        ax = self.wavecanvas.figure.axes[0]
+        self.auto_wave_x.setChecked(True)
+        self.auto_wave_y.setChecked(True)
         ax.autoscale(enable=True, axis='x')
-        self.tab_wavecanvas.draw()
+        self.wavecanvas.draw()
 
     def auto_wave_scale_y(self):
-        ax = self.tab_wavecanvas.figure.axes[0]  # matplotlib 축 객체
-        self.tab_auto_wave_y.setChecked(True)
+        """Waveform Y축 Auto Scale - 입력 필드 비우기"""
+        # ⭐ 입력 필드 비우기
+        self.y_min_wave_input.clear()
+        self.y_max_wave_input.clear()
+
+        ax = self.wavecanvas.figure.axes[0]
+        self.auto_wave_y.setChecked(True)
         ax.autoscale(enable=True, axis='y')
-        self.tab_wavecanvas.draw()
+        self.wavecanvas.draw()
 
     def on_save_button_clicked(self):
         # Spectrum이 아닌 경우 저장하지 않음
@@ -1285,6 +1392,25 @@ class ListSaveDialog(QtWidgets.QDialog):
 
 
 class Ui_MainWindow(object):
+
+    def update_waterfall_angle(self):
+        """
+        각도만 변경 (재계산 없음)
+        Enter 키를 누르면 실행됨
+        """
+        if hasattr(self, 'waterfall_cache') and self.waterfall_cache.get('computed', False):
+            print("🔄 각도 변경 중 (재계산 없음)...")
+
+            # 캐시된 데이터로 다시 그리기
+            self.plot_waterfall_spectrum(
+                x_min=self.current_x_min if hasattr(self, 'current_x_min') else None,
+                x_max=self.current_x_max if hasattr(self, 'current_x_max') else None,
+                z_min=self.current_z_min if hasattr(self, 'current_z_min') else None,
+                z_max=self.current_z_max if hasattr(self, 'current_z_max') else None,
+                force_recalculate=False  # ← 캐시 사용
+            )
+        else:
+            print("⚠️ 먼저 Waterfall을 생성해주세요")
 
     def setupUi(self, MainWindow):
         self.main_window = MainWindow
@@ -2256,6 +2382,16 @@ class Ui_MainWindow(object):
         self.tab5_layout.addLayout(self.peak_graph_layout, 1, 1, 1, 3, alignment=QtCore.Qt.AlignLeft)  # 그래프 위젯 추가
 
         #Waterfalltab
+
+        # ⭐ Waterfall 캐시 변수 추가
+        self.waterfall_cache = {
+            'computed': False,
+            'frequency': None,
+            'spectra': [],  # [(file_name, f, P, timestamp), ...]
+            'params': {}  # delta_f, overlap, window_type 저장
+        }
+
+
         self.tab_2 = QtWidgets.QWidget()
         self.tabWidget.addTab(self.tab_2, "")
         self.tab_2.setObjectName("tab_2")
@@ -2393,10 +2529,13 @@ class Ui_MainWindow(object):
         self.angle_input.setMaximumSize(129, 27)
         self.options2_layout.addWidget(self.angle_input, 5, 1)
 
+        # ⭐ 각도 변경 이벤트 연결 추가 (새로 추가할 코드)
+        self.angle_input.returnPressed.connect(self.update_waterfall_angle)
+
         self.plot_waterfall_button = QtWidgets.QPushButton("Plot Waterfall")
         self.plot_waterfall_button.setMaximumSize(129, 27)
         # self.plot_waterfall_button.setGeometry(QtCore.QRect(450, 95, 150, 30))
-        self.plot_waterfall_button.clicked.connect(self.plot_waterfall_spectrum)
+        self.plot_waterfall_button.clicked.connect(lambda: self.plot_waterfall_spectrum(force_recalculate=True))
         self.options2_layout.addWidget(self.plot_waterfall_button)
         self.options2_layout.setContentsMargins(0, 0, 0, 0)
         self.options2_layout.setSpacing(0)
@@ -2583,6 +2722,13 @@ class Ui_MainWindow(object):
         self.hover_pos_peak = [None, None]
         self.hover_step = [0.01, 0.01]  # 키보드 이동 단위 (x, y 방향)
         self.mouse_tracking_enabled = True  # 기본값은 True로 설정
+
+        # ⭐ Waterfall 캐시 초기화
+        self.waterfall_cache = {
+            'computed': False,
+            'spectra': [],
+            'params': {}
+        }
 
         # 클래스 초기화 부분에 추가할 변수
         self.current_x_min = None
@@ -3870,507 +4016,374 @@ class Ui_MainWindow(object):
         # UI 이벤트 연결 (사용자가 선택하면 update_overlap_factor 실행됨)
         self.Overlap_Factor.currentIndexChanged.connect(self.update_overlap_factor)
 
-    def plot_waterfall_spectrum(self, x_min=None, x_max=None, z_min=None, z_max=None):
-        """3D Waterfall 스펙트럼 그래프"""
+    def plot_waterfall_spectrum(self, x_min=None, x_max=None, z_min=None, z_max=None, force_recalculate=False):
+        """
+        3D Waterfall 스펙트럼 그래프
+        force_recalculate=True: FFT 재계산
+        force_recalculate=False: 캐시 사용 (축 조정/각도 변경 시)
+        """
 
         selected_items = self.Querry_list2.selectedItems()
-
         if not selected_items:
             QMessageBox.critical(None, "오류", "파일을 선택하세요")
             return
 
-        # ✅ Δf 값 읽기
+        # ===== 파라미터 읽기 =====
         try:
-            delta_f_text = self.Hz_2.toPlainText()
-            if not delta_f_text:
-                raise ValueError("Δf 값이 입력되지 않았습니다.")
-            delta_f = float(delta_f_text)
+            delta_f = float(self.Hz_2.toPlainText())
+            overlap = float(self.Overlap_Factor_2.currentText().replace('%', ''))
+            window_type = self.Function_2.currentText().lower()
+            view_type = self.select_pytpe2.currentData()
+            angle = float(self.angle_input.text()) if self.angle_input.text().strip() else 270.0
         except ValueError as e:
             QMessageBox.critical(None, "입력 오류", str(e))
             return
 
-        # ✅ 오버랩 비율 읽기
-        overlap_str = self.Overlap_Factor_2.currentText()
-        try:
-            if not overlap_str:
-                raise ValueError("오버랩 비율이 선택되지 않았습니다.")
-            overlap = float(overlap_str.replace('%', ''))
-        except ValueError as e:
-            QMessageBox.critical(None, "입력 오류", str(e))
-            return
+        # ===== 캐시 유효성 검사 =====
+        current_params = {
+            'delta_f': delta_f,
+            'overlap': overlap,
+            'window_type': window_type,
+            'view_type': view_type,
+            'file_count': len(selected_items),
+            'file_names': tuple(item.text() for item in selected_items)
+        }
 
-        # ✅ 윈도우 함수 읽기
-        window_type = self.Function_2.currentText().lower()
-        if not window_type:
-            QMessageBox.critical(None, "입력 오류", "윈도우 함수가 선택되지 않았습니다.")
-            return
-        window_type = window_type.lower()
+        cache_valid = (
+                hasattr(self, 'waterfall_cache') and
+                self.waterfall_cache.get('computed', False) and
+                self.waterfall_cache.get('params') == current_params and
+                not force_recalculate
+        )
 
-        # ✅ View Type 읽기
-        view_type = self.select_pytpe2.currentData()
-        if view_type is None:
-            QMessageBox.critical(None, "입력 오류", "View Type이 선택되지 않았습니다.")
-            return
+        # ===== FFT 계산 (필요시에만) =====
+        if not cache_valid:
+            print("🔄 Waterfall FFT 재계산 중...")
 
-        self.progress_dialog = ProgressDialog(len(selected_items), self.main_window)
-        self.progress_dialog.setWindowModality(Qt.WindowModal)
-        self.progress_dialog.show()
+            # 캐시 초기화
+            if not hasattr(self, 'waterfall_cache'):
+                self.waterfall_cache = {}
 
-        # 그래프 초기화: 기존 3D Axes 완전히 닫고, 새로 띄웁니다
+            self.waterfall_cache['spectra'] = []
+
+            self.progress_dialog = ProgressDialog(len(selected_items), self.main_window)
+            self.progress_dialog.setWindowModality(Qt.WindowModal)
+            self.progress_dialog.show()
+
+            # 시간 정렬
+            items_with_time = []
+            for item in selected_items:
+                file_name = item.text()
+                try:
+                    timestamp = self.extract_timestamp_from_filename(file_name)
+                except Exception:
+                    timestamp = datetime.datetime.max
+                items_with_time.append((item, timestamp))
+
+            sorted_items = sorted(items_with_time, key=lambda x: x[1], reverse=False)
+
+            for draw_idx, (item, timestamp) in enumerate(sorted_items):
+                file_name = item.text()
+                file_path = os.path.join(self.directory_path, file_name)
+
+                self.progress_dialog.label.setText(f"{file_name} 처리 중...")
+
+                # 데이터 로드
+                data, record_length = self.load_file_data(file_name)
+
+                if data is None or len(data) == 0:
+                    self.progress_dialog.update_progress(draw_idx + 1)
+                    continue
+
+                # 메타데이터 읽기
+                sampling_rate = None
+                b_sensitivity = None
+                sensitivity = None
+
+                try:
+                    with open(file_path, 'r') as file:
+                        for line in file:
+                            if "D.Sampling Freq. " in line:
+                                sampling_rate_str = line.split(":")[1].strip()
+                                sampling_rate = float(sampling_rate_str.replace("Hz", "").strip())
+                            elif "b.Sensitivity" in line and b_sensitivity is None:
+                                b_sensitivity = line.split(":")[1].strip().split()[0]
+                            elif "Sensitivity" in line:
+                                sensitivity = line.split(":")[1].strip()
+                except Exception as e:
+                    print(f"⚠ {file_name} - 메타데이터 파싱 오류: {e}")
+
+                if sampling_rate is None or sampling_rate <= 0:
+                    self.progress_dialog.update_progress(draw_idx + 1)
+                    continue
+
+                # 민감도 보정
+                def extract_numeric_value(s):
+                    if s is None:
+                        return None
+                    match = re.search(r"[-+]?[0-9]*\.?[0-9]+", s)
+                    return float(match.group()) if match else None
+
+                try:
+                    if b_sensitivity is not None and sensitivity is not None:
+                        b_sens = extract_numeric_value(b_sensitivity)
+                        sens = extract_numeric_value(sensitivity)
+                        if b_sens is not None and sens is not None and sens != 0:
+                            scaled_data = (b_sens / sens) * data
+                        else:
+                            scaled_data = data
+                    else:
+                        scaled_data = data
+                except Exception as e:
+                    scaled_data = data
+
+                # Delta_f 보정
+                if record_length:
+                    duration = float(record_length)
+                    hz_value = round(1 / duration + 0.01, 2)
+                    delta_f = max(delta_f, hz_value)
+
+                # FFT 계산
+                try:
+                    win_flag = {"rectangular": 0, "hanning": 1, "flattop": 2}.get(window_type, 1)
+                    w, f, P, ACF, ECF, rms_w, Sxx = self.mdl_FFT_N(
+                        2, sampling_rate, scaled_data, delta_f, overlap,
+                        win_flag, 1, view_type, 0
+                    )
+                except Exception as e:
+                    print(f"❌ FFT 계산 실패: {e}")
+                    self.progress_dialog.update_progress(draw_idx + 1)
+                    continue
+
+                P_magnitude = np.round(np.mean(ACF * np.abs(P), axis=1), 4)
+
+                # X축 라벨 생성
+                try:
+                    name_only = os.path.splitext(file_name)[0]
+                    parts = name_only.split("_")
+                    if len(parts) >= 3:
+                        date = parts[0]
+                        time = parts[1]
+                        rest = '_'.join(parts[2:])
+                        x_label = f"{date}\n{time}_{rest}"
+                    else:
+                        x_label = file_name
+                except:
+                    x_label = file_name
+
+                # ⭐ 결과 캐싱
+                self.waterfall_cache['spectra'].append({
+                    'file_name': file_name,
+                    'frequency': f,
+                    'spectrum': P_magnitude,
+                    'timestamp': timestamp,
+                    'x_label': x_label,
+                    'sampling_rate': sampling_rate
+                })
+
+                self.progress_dialog.update_progress(draw_idx + 1)
+
+            self.progress_dialog.close()
+
+            # ⭐ 캐시 상태 업데이트
+            self.waterfall_cache['computed'] = True
+            self.waterfall_cache['params'] = current_params
+
+            print(f"✅ Waterfall 캐시 생성 완료 ({len(self.waterfall_cache['spectra'])}개 파일)")
+
+        else:
+            print("✅ 캐시된 Waterfall 데이터 사용")
+
+        # ===== 그래프 렌더링 (항상 실행) =====
         self.waterfall_figure.clf()
         self.waterfall_ax = self.waterfall_figure.add_subplot(111)
         self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=7, fontname='Malgun Gothic')
 
-        # 시간 오프셋 설정 (파일명에서 시간 추출)
-        angle = float(self.angle_input.text()) if self.angle_input.text().strip() else 270.0  # 기본 각도
-        time_offset = 0
-        offset_step = 20  # 파일별 y축 간격
-        time_stamps = []  # 파일별 시간 저장 리스트
-        x_labels = []
-        sampling_rates = []  # 각 파일의 샘플링 레이트 저장 리스트
-        self.original_line_data = []
+        # X/Z 범위 결정
+        if len(self.waterfall_cache['spectra']) == 0:
+            print("❌ 표시할 데이터가 없습니다")
+            return
 
-        start_time = None  # start_time 초기화
-        # 리스트로 변환
-        selected_list = list(selected_items)
+        # 전역 범위 계산
+        all_frequencies = []
+        all_spectra = []
+        for cached in self.waterfall_cache['spectra']:
+            all_frequencies.extend(cached['frequency'])
+            all_spectra.extend(cached['spectrum'])
 
-        # (item, timestamp) 튜플 생성
-        items_with_time = []
-        for item in selected_list:
-            file_name = item.text()
-            try:
-                timestamp = self.extract_timestamp_from_filename(file_name)
-            except Exception:
-                timestamp = datetime.datetime.max  # 추출 실패 시 가장 나중으로 설정
-            items_with_time.append((item, timestamp))
+        global_xmin = np.min(all_frequencies)
+        global_xmax = np.max(all_frequencies)
+        global_zmin = np.min(all_spectra)
+        global_zmax = np.max(all_spectra)
 
-        # 타임스탬프 기준 정렬 (오래된 순서대로: 첫 계측이 sorted_items[0])
-        sorted_items = sorted(items_with_time, key=lambda x: x[1], reverse=False)
+        if x_min is None:
+            x_min = global_xmin
+        if x_max is None:
+            x_max = global_xmax
+        if z_min is None:
+            z_min = global_zmin
+        if z_max is None:
+            z_max = global_zmax
 
-        file_labels = []
-        save_tasks = []  # 저장 작업 수집용 리스트
-        for item, ts in sorted_items:
-            name = os.path.splitext(item.text())[0]
-            parts = name.split("_")
-            date, time_part = parts[0], parts[1]
-            rest = "_".join(parts[2:])
-            file_labels.append(f"{date}\n{time_part}_{rest}")
-
-        angle_deg = angle  # 사용자가 원하는 각도
+        # 각도 설정
+        angle_deg = angle
         angle_rad = np.deg2rad(angle_deg)
 
-        # Y 축 고정 범위
+        # Y축 고정 범위
         fixed_ymin, fixed_ymax = 0, 130
-        self.waterfall_ax.set_ylim(fixed_ymin, fixed_ymax)
-        # 🔧 그래프 수만큼 높이 나눔
-        num_files = len(sorted_items)
-        #🎯 오프셋 거리: 고정된 공간 안에 모두 들어오게 자동 조절
+        num_files = len(self.waterfall_cache['spectra'])
         offset_range = fixed_ymax - fixed_ymin
-        offset_distance = offset_range / num_files  # 파일 수 많을수록 간격 작아짐
+        offset_distance = offset_range / num_files
         dx = offset_distance * np.cos(angle_rad)
         dy = offset_distance * np.sin(angle_rad)
 
-        first_start = None
-        last_start = None
-
-        y_ticks = []
-        y_labels = []
-        y_info_list = []
-        all_offset_y_min = []  # 각 그래프의 시작 위치 저장
-        all_file_names = []  # 각 그래프의 파일명 저장
-        all_offset_y_pos = []  # 각 그래프의 대표 y 위치 저장 리스트
-        all_offset_y_start = []  # 시작 위치 저장 (기존)
-        all_offset_y_end = []  # 마지막 위치 저장 (추가)\
-        first_graph_y = None
-        last_graph_y = None
+        # 라벨 위치 계산
         max_labels = 5
-        total_files = len(sorted_items)
+        total_files = len(self.waterfall_cache['spectra'])
         label_indices = list(range(total_files)) if total_files <= max_labels else \
             np.linspace(0, total_files - 1, max_labels, dtype=int)
 
         yticks_for_labels = []
         labels_for_ticks = []
 
-        for draw_idx, (item, timestamp) in enumerate((sorted_items)):
-            file_name = item.text()
-            file_path = os.path.join(self.directory_path, file_name)
-            data, record_length = self.load_file_data(file_path)
-            dt, first_start_time, duration, rest_time, repetition, channel_info, iepe, b_sensitivity, sensitivity = [None] * 9
+        # 그래프 그리기
+        for draw_idx, cached_data in enumerate(self.waterfall_cache['spectra']):
+            f = cached_data['frequency']
+            P_magnitude = cached_data['spectrum']
+            file_name = cached_data['file_name']
+            x_label = cached_data['x_label']
 
-            # ✅ 개별 파일의 샘플링 레이트 읽기
-            try:
-                with open(file_path, 'r') as file:
-                    for line in file:
-                        if "D.Sampling Freq. " in line:
-                            sampling_rate_str = line.split(":")[1].strip()
-                            sampling_rate = float(sampling_rate_str.replace("Hz", "").strip())
-                        elif "Starting Time" in line:
-                            if first_start_time is None:  # ✅ 처음 등장하는 start_time만 저장
-                                first_start_time = line.split(":")[1].strip()
-                        elif "Record Length" in line:
-                            duration = line.split(":")[1].strip().split()[0]  # 숫자만 추출
-                        elif "b.Sensitivity" in line and b_sensitivity is None:
-                            b_sensitivity = line.split(":")[1].strip().split()[0]
-                        elif "Sensitivity" in line:
-                            sensitivity = line.split(":")[1].strip()
-            except Exception as e:
-                print(f"⚠ {file_name} - 메타데이터 파싱 오류: {e}")
-
-            if data is None or len(data) == 0:
-                self.progress_dialog.label.setText(f"{file_name} - 데이터 없음. 건너뜀.")
-                self.progress_dialog.update_progress(draw_idx + 1)
-                #print(f"❌ {file_name} - No valid data.")
-                continue
-            self.progress_dialog.label.setText(f"{file_name} 처리 중...")  # ✅ 현재 파일 표시
-
-            try:
-                file_timestamp = self.extract_timestamp_from_filename(file_name)
-                name_only = os.path.splitext(file_name)[0]  # 확장자 제거
-                parts = name_only.split("_")
-                if len(parts) >= 3:
-                    date = parts[0]
-                    time = parts[1]
-                    rest = '_'.join(parts[2:])
-                    new_name = f"{date}\n{time}_{rest}"
-                x_labels.append(new_name)  # "날짜_시간" 포맷으로 저장
-            except Exception as e:
-                file_timestamp = None
-
-            # 첫 번째 파일에서 start_time 설정
-            if start_time is None:
-                start_time = file_timestamp if file_timestamp else datetime.datetime.now()
-
-            if file_timestamp:
-                time_offset = (file_timestamp - start_time).total_seconds()
-            else:
-                time_offset += offset_step
-
-            # 샘플링 레이트 추출
-
-            if sampling_rate is None or sampling_rate <= 0:
-                return
-
-            if delta_f is None or delta_f <= 0:
-                return
-
-            if not isinstance(data, np.ndarray) or len(data) == 0:
-                return
-
-            # ✅ 숫자만 추출하여 float 변환
-            def extract_numeric_value(s):
-                if s is None:  # ← 추가!
-                    return None
-                match = re.search(r"[-+]?[0-9]*\.?[0-9]+", s)
-                return float(match.group()) if match else None
-
-            # b.Sensitivity와 Sensitivity 존재 시 계산
-            try:
-                if b_sensitivity is not None and sensitivity is not None:
-                    b_sens = extract_numeric_value(b_sensitivity)
-                    sens = extract_numeric_value(sensitivity)
-
-                    if b_sens is not None and sens is not None and sens != 0:
-                        scaled_data = (b_sens / sens) * data
-                        perf_logger.log_info(f"✓ {file_name}: 민감도 보정 적용")
-                    else:
-                        scaled_data = data
-                        perf_logger.log_warning(f"⚠️ {file_name}: 민감도 값 이상")
-                else:
-                    scaled_data = data
-                    perf_logger.log_info(f"ℹ️ {file_name}: b.Sensitivity 없음, 원본 사용")
-            except Exception as e:
-                scaled_data = data
-                perf_logger.log_warning(f"⚠️ {file_name}: 민감도 보정 오류, 원본 사용")
-
-            if sampling_rate / delta_f > np.atleast_2d(data).shape[0]:
-                text = record_length
-                duration2 = text
-
-                duration = float(duration2)
-                hz_value = round(1 / duration + 0.01, 2)  # 소수점 6자리까지 반올림
-
-                delta_f = hz_value
-                QMessageBox.critical(None, "안내", "delt_f의 입력값이 너무 작아 "f"{hz_value}""로 치환 되었습니다!")
-
-            # FFT 계산
-            type_flag = 2
-            try:
-                w, f, P, ACF, ECF, rms_w, Sxx = self.mdl_FFT_N(
-                    type_flag, sampling_rate, scaled_data, delta_f, overlap,
-                    1 if window_type == "hanning" else 2 if window_type == "flattop" else 0, 1, view_type, 0
-                )
-            except Exception as e:
-                #print(f"❌ FFT 계산 실패: {e}")
-                continue
-
-            P_magnitude = np.round(np.mean(ACF * np.abs(P), axis=1), 4)  # shape: (주파수 점 개수,)
-            fixed_ymin, fixed_ymax = 0, np.max(P_magnitude)
-            fixed_xmin, fixed_xmax = 0, np.max(f)
-
-            # Step 1: x축 필터 먼저 적용
-            mask_freq = np.ones_like(f, dtype=bool)
-            if x_min is not None and x_max is not None:
-                mask_freq = (f >= x_min) & (f <= x_max)
-
+            # X축 필터링
+            mask_freq = (f >= x_min) & (f <= x_max)
             f_filtered = f[mask_freq]
             p_filtered = P_magnitude[mask_freq]
 
-            # ✅ 2. x 정규화 (그래프 시각 균등하게)
-            if x_min is not None and x_max is not None:
-                global_xmin, global_xmax = x_min, x_max
+            # X 정규화
+            x_range = x_max - x_min
+            f_normalized = (f_filtered - x_min) / x_range
+            x_scale = 530
 
-            else:
-                global_xmin, global_xmax = np.min(f), np.max(f)
-
-            x_range = global_xmax - global_xmin
-            f_normalized = (f_filtered - global_xmin) / x_range  # 0~1 정규화
-
-            x_scale = 530  # 고정된 그래프 폭 (가로길이)
-
-            # ✅ 전체 스케일 기준 정규화
-            global_max = np.max(p_filtered)  # 전체 y값의 최대값 기준으로 정규화
-
+            # Y 정규화
+            global_max = np.max(all_spectra)
             if z_min is not None and z_max is not None and z_max > z_min:
-                y_clipped = p_filtered / global_max  # 그래프엔 필터된 y 사용, 기준은 전체 max
-                y_normalized = [(val - z_min) / (z_max - z_min) for val in y_clipped]
-
-
-
+                p_clipped = np.clip(p_filtered, z_min, z_max)
+                y_normalized = (p_clipped - z_min) / (z_max - z_min)
             else:
-                y_normalized = p_filtered / global_max  # fallback 정규화
+                y_normalized = p_filtered / global_max
 
-            scale_factor = (fixed_ymax - fixed_ymin) * 1  # 전체 높이의 90%를 진폭 최대치로
-            y_scaled = [val * scale_factor for val in y_normalized]
+            scale_factor = (fixed_ymax - fixed_ymin) * 1
+            y_scaled = y_normalized * scale_factor
 
-            # 위치 오프셋 (사용자 각도 유지)
+            # Offset 적용
             base_x = draw_idx * dx
             base_y = draw_idx * dy
-            offset_x = [val * x_scale + base_x for val in f_normalized]
-            offset_y = [yi + base_y for yi in y_scaled]
-            start_y = min(offset_y)
-            all_offset_y_min.append(start_y)
-            all_file_names.append(file_name)
+            offset_x = f_normalized * x_scale + base_x
+            offset_y = y_scaled + base_y
 
-            # 첫 번째 그래프에 한해서만 tick 표시
+            # 그래프 그리기
+            self.waterfall_ax.plot(offset_x, offset_y, alpha=0.6, label=file_name)
+
+            # 첫 번째 그래프에만 X/Y축 tick 표시
             if draw_idx == 0:
-
-                # ✅ X축 tick: 첫 그래프 시작/끝 위치에 x_min, x_max 표시
-                if x_min is not None and x_max is not None and len(offset_x) >= 2:
-                    # x_min과 x_max 사이에 7개의 tick 위치 생성 (시작, 끝 포함)
+                if len(offset_x) >= 2:
                     xticks = np.linspace(offset_x[0], offset_x[-1], 7)
-                    # 눈금에 대응하는 값: x_min ~ x_max 사이를 균등 분할
                     xtick_labels = np.linspace(x_min, x_max, 7)
-
                     self.waterfall_ax.set_xticks(xticks)
                     self.waterfall_ax.set_xticklabels([f"{val:.1f}" for val in xtick_labels])
-                if draw_idx == 0 and z_min is not None and z_max is not None and len(offset_y) >= 2:
-                    self.waterfall_ax.yaxis.set_ticks_position('left')
 
+                if z_min is not None and z_max is not None and len(offset_y) >= 2:
+                    self.waterfall_ax.yaxis.set_ticks_position('left')
                     ymin = min(offset_y)
                     ymax = max(offset_y)
                     yticks = np.linspace(ymin, ymax, 7)
                     ytick_labels = np.linspace(z_min, z_max, 7)
-
                     self.waterfall_ax.set_yticks(yticks)
                     self.waterfall_ax.set_yticklabels([f"{val:.4f}" for val in ytick_labels], fontsize=7)
                     self.waterfall_ax.tick_params(axis='y', labelleft=True)
-                    # ✅ 중요: y축 범위 고정 (그래프 기준으로)
-                    self.waterfall_ax.set_ylim(0, 150)  # <- 핵심!
+                    self.waterfall_ax.set_ylim(0, 150)
 
-            all_offset_y_start.append(min(offset_y))
-            all_offset_y_end.append(offset_y[-1])  # 마지막 y 위치 저장
-
-            start_y = min(offset_y)
-
-            # # ✅ draw_idx가 표시 대상일 때만 텍스트 추가
-            # if draw_idx in label_indices:
-            #         label_text = file_name.replace(".txt", "")  # .txt 제거
-            #         self.waterfall_ax.text(offset_x[-1] + 20, np.mean(offset_y), label_text,
-            #                         fontsize=8, va='center', ha='left')
-
+            # 라벨 저장
             if draw_idx in label_indices:
                 center_y = np.min(offset_y)
-                # ✅ .txt 제거 및 두 줄로 분할
                 base_name = file_name.replace(".txt", "")
                 parts = base_name.split("_")
                 if len(parts) >= 2:
                     label_text = parts[0] + "_" + parts[1] + "\n" + "_".join(parts[2:])
                 else:
-                    label_text = base_name  # fallback
+                    label_text = base_name
 
                 yticks_for_labels.append(center_y)
                 labels_for_ticks.append(label_text)
 
-            # # 그리기
-            self.waterfall_ax.plot(offset_x, offset_y, alpha=0.6, label=file_name)
-            self.waterfall_ax.set_aspect('auto')
-
-            # 전체 개수
-            total_files = len(sorted_items)
-
-            # 최대 5개 눈금만 표시
-            max_labels = 5
-            if total_files <= max_labels:
-                label_indices = list(range(total_files))
-            else:
-                label_indices = np.linspace(0, total_files - 1, max_labels, dtype=int)
-
-            # 그래프 시작 위치
-            start_point = (offset_x[0], offset_y[0])
-            # 첫 번째 그래프 시작 위치 저장
-            if first_start is None:
-                first_start = start_point
-
-            # 매 반복마다 마지막 그래프의 시작 위치로 갱신
-            last_start = start_point
-
-            time_stamps.append(file_timestamp if file_timestamp else start_time)
-
-            # 다음 파일은 한 줄 위로
-            time_offset += offset_step
-            self.progress_dialog.update_progress(draw_idx + 1)
-
-        # ✅ 오른쪽 y축 설정 (tick 숨기고 텍스트만 표시)
+        # 오른쪽 Y축 라벨
         ax_right = self.waterfall_ax.twinx()
         ax_right.set_ylim(self.waterfall_ax.get_ylim())
-
-        # ytick은 숨김 처리 (혹은 최소화)
         ax_right.set_yticks([])
         ax_right.tick_params(right=False)
 
-        # ✅ 텍스트를 오른쪽 y축 바깥에 수직으로 정렬해서 그리기
         for y, label in zip(yticks_for_labels, labels_for_ticks):
             ax_right.text(1.02, y, label, transform=ax_right.get_yaxis_transform(),
                           fontsize=7, va='center', ha='left')
 
-        if time_offset == 0:
-            #print("❌ No valid data to plot.")
-            return
-
-        self.progress_dialog.close()
-
-        # 축 설정
-        view_type_map = {
-            1: "ACC",
-            2: "VEL",
-            3: "DIS"
-        }
-
-        view_type_code = self.select_pytpe2.currentData()
-        view_type = view_type_map.get(view_type_code, "ACC")  # 기본값은 "ACC"로 설정
-
+        # Y축 라벨
+        view_type_map = {1: "ACC", 2: "VEL", 3: "DIS"}
+        view_type_str = view_type_map.get(view_type, "ACC")
         labels = {
             "ACC": "Vibration Acceleration \n (m/s^2, RMS)",
             "VEL": "Vibration Velocity \n (mm/s, RMS)",
             "DIS": "Vibration Displacement \n (μm , RMS)"
         }
-        zlabel = labels.get(view_type, "RMS Vibration (mm/s, RMS)")
+        zlabel = labels.get(view_type_str, "RMS Vibration (mm/s, RMS)")
         self.waterfall_ax.set_ylabel(zlabel, fontsize=7, fontname='Malgun Gothic')
+        self.waterfall_ax.set_xlabel("Frequency (Hz)", fontsize=7)
 
-        self.waterfall_ax.set_xlabel("Frequency (Hz)", fontsize=7)  # 또는 "Frequency (Hz)"
-
-        self.waterfall_figure.patch.set_facecolor('white')  # Figure 배경 흰색으로 설정
-        self.waterfall_ax.set_facecolor('white')  # Axes 배경 흰색으로 설정
-
-        self.waterfall_canvas.flush_events()  # 기존 그래픽 삭제
+        # 배경 설정
+        self.waterfall_figure.patch.set_facecolor('white')
+        self.waterfall_ax.set_facecolor('white')
         self.waterfall_ax.tick_params(axis='y', labelrotation=0)
         self.waterfall_ax.tick_params(axis='x', labelsize=7)
         self.waterfall_ax.tick_params(axis='y', labelsize=7)
 
-        self.original_xlim = self.waterfall_ax.get_xlim()
-        self.original_ylim = self.waterfall_ax.get_ylim()
+        # ⭐ X축 그리드 추가 (등간격 기준)
+        x_range = x_max - x_min
+        if x_range <= 100:
+            interval = 10
+        elif x_range <= 200:
+            interval = 20
+        elif x_range <= 500:
+            interval = 50
+        elif x_range <= 1000:
+            interval = 100
+        elif x_range <= 2000:
+            interval = 200
+        elif x_range <= 5000:
+            interval = 500
+        else:
+            interval = 1000
 
-        # if first_start and last_start:
-        #         x0, y0 = first_start
-        #         x1, y1 = last_start
+        grid_ticks = np.arange(
+            int(x_min / interval) * interval,
+            x_max + interval,
+            interval
+        )
 
-        #         # 기준 벡터
-        #         dx = x1 - x0
-        #         dy = y1 - y0
+        # 그리드 그리기 (첫 번째 그래프 기준으로 변환)
+        if len(self.waterfall_cache['spectra']) > 0:
+            first_f = self.waterfall_cache['spectra'][0]['frequency']
+            mask = (first_f >= x_min) & (first_f <= x_max)
+            f_filtered = first_f[mask]
 
-        #         # x축 전체 범위
-        #         x_min, x_max = self.waterfall_ax.get_xlim()
-        #         total_x_range = x_max - x_min
+            if len(f_filtered) >= 2:
+                f_normalized = (f_filtered - x_min) / x_range
+                offset_x_first = f_normalized * x_scale
 
-        #         # 원하는 전체 선 수 (기준선 + 추가 화살표)
-        #         total_lines = 10
-
-        #         # 🔹 간격 자동 계산 (기준선 뒤로 균등 분포)
-        #         spacing = total_x_range / (total_lines + 2)
-
-        #         # 기준선 먼저 그림
-        #         self.waterfall_ax.annotate(
-        #                 '',
-        #                 xy=(x1, y1),
-        #                 xytext=(x0, y0),
-        #                 arrowprops=dict(arrowstyle='-', lw=1.5, alpha=0.3),
-        #                 clip_on=True
-        #         )
-
-        #         # 추가 화살표 반복
-        #         for i in range(1, total_lines):
-        #                 x_offset = i * spacing
-        #                 new_x0 = x0 + x_offset
-        #                 new_x1 = x1 + x_offset
-        #                 new_y0 = y0
-        #                 new_y1 = y1
-
-        #                 # 범위를 초과하지 않도록 체크
-        #                 if new_x1 > (x_max-1):
-        #                         break
-
-        #                 self.waterfall_ax.annotate(
-        #                 '',
-        #                 xy=(new_x1, new_y1),
-        #                 xytext=(new_x0, new_y0),
-        #                 arrowprops=dict(arrowstyle='-', lw=1.5, alpha=0.3),
-        #                 clip_on=True
-        #                 )
-        if first_start and last_start:
-            x0, y0 = first_start
-            x1, y1 = last_start
-
-            # x축 전체 범위
-            x_min, x_max = self.waterfall_ax.get_xlim()
-            total_x_range = x_max - x_min
-            total_lines = 10
-            spacing = total_x_range / (total_lines + 2)
-
-            # ✅ y=0에서 시작하지만 기울기 유지한 x0 계산
-            if y1 != y0:
-                adjusted_x0 = x1 - ((x1 - x0) * y1 / (y1 - y0))
-            else:
-                adjusted_x0 = x0  # 수평선일 경우
-
-            adjusted_y0 = 0  # 시작 y는 항상 0
-
-            # 기준선 그리기
-            self.waterfall_ax.annotate(
-                '',
-                xy=(x1, y1),
-                xytext=(adjusted_x0, adjusted_y0),
-                arrowprops=dict(arrowstyle='-', lw=1.5, alpha=0.3),
-                clip_on=True
-            )
-
-            for i in range(1, total_lines):
-                x_offset = i * spacing
-
-                new_x0 = adjusted_x0 + x_offset
-                new_x1 = x1 + x_offset
-                new_y0 = adjusted_y0
-                new_y1 = y1
-
-                if new_x1 > (x_max - 1):
-                    break
-
-                self.waterfall_ax.annotate(
-                    '',
-                    xy=(new_x1, new_y1),
-                    xytext=(new_x0, new_y0),
-                    arrowprops=dict(arrowstyle='-', lw=1.5, alpha=0.3),
-                    clip_on=True
-                )
+                for tick_val in grid_ticks:
+                    if x_min <= tick_val <= x_max:
+                        # tick_val을 offset_x 좌표로 변환
+                        normalized = (tick_val - x_min) / x_range
+                        x_pos = normalized * x_scale
+                        self.waterfall_ax.axvline(x=x_pos, color='gray', linestyle='--',
+                                                  linewidth=0.5, alpha=0.3)
 
         self.waterfall_canvas.draw()
 
@@ -4383,8 +4396,14 @@ class Ui_MainWindow(object):
 
             self.auto_scale_x_2.setChecked(True)
 
-            # x 범위로 슬라이싱해서 다시 플로팅
-            self.plot_waterfall_spectrum(x_min=x_min, x_max=x_max, z_min=self.current_z_min, z_max=self.current_z_max)
+            # ⭐ force_recalculate=False
+            self.plot_waterfall_spectrum(
+                x_min=x_min,
+                x_max=x_max,
+                z_min=self.current_z_min,
+                z_max=self.current_z_max,
+                force_recalculate=False
+            )
 
         except ValueError:
             print("")
@@ -4398,13 +4417,20 @@ class Ui_MainWindow(object):
 
             self.auto_scale_z.setChecked(True)
 
-            # x 범위로 슬라이싱해서 다시 플로팅
-            self.plot_waterfall_spectrum(x_min=self.current_x_min, x_max=self.current_x_max, z_min=z_min, z_max=z_max)
+            # ⭐ force_recalculate=False
+            self.plot_waterfall_spectrum(
+                x_min=self.current_x_min,
+                x_max=self.current_x_max,
+                z_min=z_min,
+                z_max=z_max,
+                force_recalculate=False
+            )
 
         except ValueError:
             print("")
 
     def set_x_axis2(self):
+        """X축 조정 - 재계산 없이 View만 변경"""
         try:
             x_min = float(self.x_min_input2.text())
             x_max = float(self.x_max_input2.text())
@@ -4415,17 +4441,21 @@ class Ui_MainWindow(object):
             self.current_x_max = x_max
             self.auto_scale_x_2.setChecked(False)
 
+            # ⭐ force_recalculate=False (재계산 안 함)
             self.plot_waterfall_spectrum(
-                x_min=self.current_x_min,
-                x_max=self.current_x_max,
+                x_min=x_min,
+                x_max=x_max,
                 z_min=self.current_z_min,
-                z_max=self.current_z_max
+                z_max=self.current_z_max,
+                force_recalculate=False  # ← 핵심!
             )
 
         except ValueError:
             print("")
 
+
     def set_z_axis(self):
+        """Z축 조정 - 재계산 없이 View만 변경"""
         try:
             z_min = float(self.z_min_input.text())
             z_max = float(self.z_max_input.text())
@@ -4436,17 +4466,14 @@ class Ui_MainWindow(object):
             self.current_z_max = z_max
             self.auto_scale_z.setChecked(False)
 
-            # self.waterfall_ax.set_ylim(z_min, z_max)
-            # self.waterfall_ax.set_aspect('auto')  # 자동 비율
-            # self.waterfall_canvas.draw()
-
+            # ⭐ force_recalculate=False
             self.plot_waterfall_spectrum(
                 x_min=self.current_x_min,
                 x_max=self.current_x_max,
-                z_min=self.current_z_min,
-                z_max=self.current_z_max
+                z_min=z_min,
+                z_max=z_max,
+                force_recalculate=False
             )
-
 
         except ValueError:
             print("")
@@ -5622,35 +5649,40 @@ class Ui_MainWindow(object):
             self.trend_canvas.draw()
 
     def on_list_save_btn_clicked(self):
-        text_lines = self.data_list_text.toPlainText().split("\n")
+        try:
+            text_lines = self.data_list_text.toPlainText().split("\n")
 
-        channel_files = {f"Ch{i}": [] for i in range(1, 7)}  # Ch1 ~ Ch6 초기화
+            channel_files = {f"Ch{i}": [] for i in range(1, 7)}  # Ch1 ~ Ch6 초기화
 
-        for line in text_lines:
-            line = line.strip()
-            if not line or line.startswith("Ch") or line == "-":
-                continue
+            for line in text_lines:
+                line = line.strip()
+                if not line or line.startswith("Ch") or line == "-":
+                    continue
 
-            # 파일명에서 채널 번호 추출: 마지막 언더스코어 다음의 숫자
-            try:
-                channel_num = int(line.split("_")[-1].split(".")[0])  # 마지막 숫자
-                if 1 <= channel_num <= 6:
-                    channel_key = f"Ch{channel_num}"
-                    channel_files[channel_key].append(line)
-            except Exception as e:
-                print(f"파일 파싱 오류: {line}, 에러: {e}")
+                # 파일명에서 채널 번호 추출: 마지막 언더스코어 다음의 숫자
+                try:
+                    channel_num = int(line.split("_")[-1].split(".")[0])  # 마지막 숫자
+                    if 1 <= channel_num <= 6:
+                        channel_key = f"Ch{channel_num}"
+                        channel_files[channel_key].append(line)
+                except Exception as e:
+                    print(f"파일 파싱 오류: {line}, 에러: {e}")
 
-        dialog = ListSaveDialog(
-            channel_files,
-            self.main_window,
-            directory_path=self.directory_path  # ✅ 폴더 경로 같이 넘기기
-        )
+            dialog = ListSaveDialog(
+                channel_files,
+                self.main_window,
+                directory_path=self.directory_path  # ✅ 폴더 경로 같이 넘기기
+            )
 
-        if dialog.exec_() == QtWidgets.QDialog.Accepted:
-            selected_files = dialog.get_selected_files()
-            # if selected_files:
-            #         self.save_selected_files(selected_files)
-
+            if dialog.exec_() == QtWidgets.QDialog.Accepted:
+                selected_files = dialog.get_selected_files()
+                # if selected_files:
+                #         self.save_selected_files(selected_files)
+        except Exception as e:
+            print(f"❌ on_list_save_btn_clicked 오류: {e}")
+            import traceback
+            traceback.print_exc()
+            QMessageBox.critical(None, "오류", f"Detail Analysis 실행 중 오류 발생:\n{e}")
     def add_marker_filename_to_list(self, filename):
         # 예: filename = "data_example_3.txt"
 

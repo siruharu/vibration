@@ -9,6 +9,7 @@ import PyQt5.QtGui
 
 from performance_logger import PerformanceLogger
 from OPTIMIZATION_PATCH_LEVEL1 import FileCache, BatchProcessor, MemoryEfficientProcessor
+from responsive_layout_utils import ResponsiveLayoutMixin, calculate_window_size, create_responsive_button
 
 # # ⭐ 추가: Level 2 최적화 임포트
 # from OPTIMIZATION_PATCH_LEVEL2_PARALLEL import (
@@ -137,1261 +138,500 @@ class ProgressDialog(QDialog):
         QApplication.processEvents()
 
 
-class ListSaveDialog(QtWidgets.QDialog):
+"""
+완전한 ListSaveDialog 클래스
+cn_3F_trend_optimized.py의 기존 ListSaveDialog 클래스를 이 코드로 교체하세요
+"""
+
+import itertools
+import os
+import csv
+import numpy as np
+from PyQt5 import QtWidgets, QtCore
+from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+import matplotlib.pyplot as plt
+from responsive_layout_utils import ResponsiveLayoutMixin, create_responsive_button
+
+
+class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
+    """Detail Analysis 다이얼로그 (반응형)"""
+
     def __init__(self, channel_files: dict, parent=None, headers=None, directory_path=None):
         super().__init__(parent)
-        self.marker_points = []  # 마커를 저장할 리스트
-        self.cursor_circles = []
-        self.markers = []
-        self.setWindowTitle("Select Files to Save")
-        self.resize(1920, 1027)
+
+        # ===== 창 설정 =====
+        self.setWindowFlags(
+            QtCore.Qt.Window |
+            QtCore.Qt.WindowCloseButtonHint |
+            QtCore.Qt.WindowMinMaxButtonsHint
+        )
+        self.setWindowTitle("Detail Analysis - Select Files to Save")
+
+        # ⭐ 화면 크기 기반 창 크기
+        from responsive_layout_utils import calculate_window_size
+        width, height = calculate_window_size(0.85, 0.85, 1200, 800)
+        self.resize(width, height)
+        self.setMinimumSize(1200, 800)
+
+        # ===== 메인 레이아웃 =====
+        main_layout = QtWidgets.QHBoxLayout(self)
+        main_layout.setContentsMargins(10, 10, 10, 10)
+        main_layout.setSpacing(10)
+
+        # ⭐ QSplitter (좌우 분할)
+        splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
+
+        # ===== 왼쪽 패널 (파일 리스트) =====
+        left_panel = self.create_left_panel()
+
+        # ===== 오른쪽 패널 (그래프) =====
+        right_panel = self.create_right_panel()
+
+        # Splitter에 추가
+        splitter.addWidget(left_panel)
+        splitter.addWidget(right_panel)
+        splitter.setStretchFactor(0, 15)  # 왼쪽 15%
+        splitter.setStretchFactor(1, 85)  # 오른쪽 85%
+
+        main_layout.addWidget(splitter)
+
+        # ===== 초기화 =====
+        self.directory_path = directory_path
+        self.channel_files = channel_files
+        self.populate_list_widget()
         self.color_cycle = itertools.cycle(plt.cm.tab10.colors)
 
-        self.progress_dialog = None  # 진행률 창 초기화
-        self.directory_path = directory_path  # ✅ 메인 윈도우에서 전달받은 경로 저장
+    def create_left_panel(self):
+        """왼쪽 패널 생성"""
+        panel = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        # ⭐ 데이터 저장용 딕셔너리 초기화
-        self.data_dict = {}
-        self.spectrum_data_dict1 = {}
-        self.file_names_used1 = []
-        self.sample_rate1 = {}
+        # Plot 버튼
+        self.plot_button = create_responsive_button("Plot", 100, 35, "primary")
+        self.plot_button.clicked.connect(self.on_file_items_clicked)  # ✅ 오타 수정
+        layout.addWidget(self.plot_button)
 
-        self.tab_layout = QtWidgets.QGridLayout()
-        self.layout = QtWidgets.QHBoxLayout()
-
-        self.left_layout = QtWidgets.QVBoxLayout()
-
+        # 파일 리스트
         self.list_widget = QtWidgets.QListWidget()
-        # 채널별로 항목 정렬
-        for ch_name in sorted(channel_files.keys()):
-            # 채널 헤더 (비선택 항목)
-            item = QtWidgets.QListWidgetItem(ch_name)
-            item.setFlags(QtCore.Qt.NoItemFlags)  # 선택 불가
-            font = item.font()
-            font.setBold(True)
-            item.setFont(font)
-            self.list_widget.addItem(item)
+        self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.MultiSelection)
+        self.list_widget.setStyleSheet("""
+            QListWidget {
+                background-color: #2b2b2b;
+                color: white;
+                font-size: 10pt;
+                border: 1px solid #3a3a3a;
+            }
+            QListWidget::item:selected { background-color: #4a4a4a; }
+        """)
+        layout.addWidget(self.list_widget)
 
-            # 해당 채널의 파일 목록
-            for filename in channel_files[ch_name]:
-                self.list_widget.addItem(filename)
+        return panel
 
-        #self.list_widget.itemClicked.connect(self.on_file_itmes_clicked)
+    def create_right_panel(self):
+        """오른쪽 패널 생성"""
+        panel = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
+        layout.setSpacing(10)
 
-        self.plot_button = QtWidgets.QPushButton()
+        # Waveform
+        waveform_widget = self.create_graph_widget("waveform")
+        layout.addWidget(waveform_widget, stretch=1)
 
-        self.list_widget.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
+        # Spectrum
+        spectrum_widget = self.create_graph_widget("spectrum")
+        layout.addWidget(spectrum_widget, stretch=1)
 
-        self.file_name = QtWidgets.QPushButton("Plot")
-        self.file_name.clicked.connect(self.on_file_itmes_clicked)
-        self.left_layout.addWidget(self.file_name)
-        self.left_layout.addWidget(self.list_widget)
+        # 버튼 영역
+        button_widget = self.create_button_panel()
+        layout.addWidget(button_widget)
 
-        self.tab_layout.addLayout(self.left_layout, 0, 0, 2, 1)
-        self.tab_layout.setColumnStretch(1, 4)
+        return panel
 
-        self.tab_wave_layout = QtWidgets.QHBoxLayout()
-        self.tab_spec_layout = QtWidgets.QHBoxLayout()
+    def create_graph_widget(self, graph_type):
+        """그래프 위젯 생성"""
+        widget = QtWidgets.QWidget()
+        layout = QtWidgets.QVBoxLayout(widget)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        # 그래프를 표시할 수직 Splitter 생성
-        self.tab_graph_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        self.tab_graph_splitter.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        # Figure 생성
+        dpi = QtWidgets.QApplication.primaryScreen().logicalDotsPerInch()
+        figure = plt.Figure(figsize=(10, 3.5), dpi=dpi)
+        ax = figure.add_subplot(111)
+        canvas = FigureCanvas(figure)
+        canvas.setMinimumHeight(250)
 
-        # ▶ Waveform 그래프
-        self.tab_waveform_figure = Figure()
-        self.tab_wavecanvas = FigureCanvas(self.tab_waveform_figure)
-        self.tab_wavecanvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.tab_waveax = self.tab_waveform_figure.add_subplot(111)
-        self.tab_waveax.set_title("Waveform", fontsize=7, fontname='Malgun Gothic')
-        self.tab_wavecanvas.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.tab_wavecanvas.setFocus()
-        #self.wavecanvas.setMinimumHeight(600)
-        #self.wavecanvas.setMaximumHeight(600)
+        # 범례 공간 확보
+        self.setup_figure_with_legend(figure, ax, rect=[0, 0, 0.85, 1])
 
-        # ▶ Spectrum 그래프
-        self.tab_figure = Figure()
-        self.tab_canvas = FigureCanvas(self.tab_figure)
-        self.tab_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
-        self.tab_ax = self.tab_figure.add_subplot(111)
-        self.tab_ax.set_title("Vibration Spectrum", fontsize=7, fontname='Malgun Gothic')
-        self.tab_waveax.tick_params(axis='x', labelsize=7)
-        self.tab_waveax.tick_params(axis='y', labelsize=7)
-        self.tab_ax.tick_params(axis='x', labelsize=7)
-        self.tab_ax.tick_params(axis='y', labelsize=7)
-        self.tab_canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
-        self.tab_canvas.setFocus()
-        #self.canvas.setMinimumHeight(200)
-        #self.canvas.setMaximumHeight(600)
+        # 저장
+        if graph_type == "waveform":
+            self.tab_waveform_figure = figure
+            self.tab_waveax = ax
+            self.tab_wavecanvas = canvas
+        else:
+            self.tab_figure = figure
+            self.tab_ax = ax
+            self.tab_canvas = canvas
 
-        # # ▶ Splitter에 그래프 추가
-        # self.tab_graph_splitter.addWidget(self.tab_wavecanvas)
-        # self.tab_graph_splitter.addWidget(self.tab_canvas)
+        layout.addWidget(canvas)
 
-        # self.tab_layout.addWidget(self.tab_graph_splitter, 0, 1, 1, 7)
+        # 컨트롤 패널
+        control = self.create_control_panel(graph_type)
+        layout.addWidget(control)
 
-        self.tab_wave_scale_layout = QtWidgets.QVBoxLayout()
-        self.tab_wave_scale_layout.addStretch(2)
+        return widget
 
-        self.tab_wave_x_layout = QtWidgets.QHBoxLayout()
-        self.tab_wave_x_layout2 = QtWidgets.QHBoxLayout()
-        self.tab_wave_y_layout = QtWidgets.QHBoxLayout()
-        self.tab_wave_y_layout2 = QtWidgets.QHBoxLayout()
-        # ✅ X축, Y축 Limit 설정 UI 추가
-        self.tab_auto_wave_x = QtWidgets.QCheckBox("Auto X")
-        self.tab_auto_wave_x.setChecked(True)  # 기본값 Auto
-        self.tab_wave_x_layout.addWidget(self.tab_auto_wave_x)
+    def create_control_panel(self, graph_type):
+        """컨트롤 패널 생성"""
+        panel = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(panel)
+        layout.setContentsMargins(5, 5, 5, 5)
+        layout.setSpacing(10)
 
-        self.tab_wave_x_autoscale = QtWidgets.QPushButton("Auto Scale")
-        self.tab_wave_x_autoscale.setMaximumSize(100, 31)
-        self.tab_wave_x_layout.addWidget(self.tab_wave_x_autoscale)
+        # Auto X
+        auto_x = QtWidgets.QCheckBox("Auto X")
+        auto_x.setChecked(True)
+        auto_x.setStyleSheet("color: white; font-size: 10pt;")
 
-        self.tab_auto_wave_y = QtWidgets.QCheckBox("Auto Y")
-        self.tab_auto_wave_y.setChecked(True)
-        self.tab_wave_y_layout.addWidget(self.tab_auto_wave_y)
+        # Auto Scale 버튼
+        auto_scale_btn = create_responsive_button("Auto Scale", 80, 25, "default")
 
-        self.tab_wave_y_autoscale = QtWidgets.QPushButton("Auto Scale")
-        self.tab_wave_y_autoscale.setMaximumSize(100, 31)
-        self.tab_wave_y_layout.addWidget(self.tab_wave_y_autoscale)
+        # Y min/max
+        y_min_label = QtWidgets.QLabel("Y min:")
+        y_min_label.setStyleSheet("color: white;")
+        y_min_input = QtWidgets.QLineEdit()
+        y_min_input.setMaximumWidth(80)
+        y_min_input.setStyleSheet("""
+            QLineEdit {
+                background-color: #3a3a3a; color: white;
+                border: 1px solid #5a5a5a; padding: 3px;
+            }
+        """)
 
-        self.tab_x_min_input = QtWidgets.QLineEdit()
-        self.tab_x_min_input.setPlaceholderText("X min")
-        self.tab_x_min_input.setMaximumSize(70, 31)
-        self.tab_x_min_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_wave_x_layout2.addWidget(self.tab_x_min_input)
+        y_max_label = QtWidgets.QLabel("Y max:")
+        y_max_label.setStyleSheet("color: white;")
+        y_max_input = QtWidgets.QLineEdit()
+        y_max_input.setMaximumWidth(80)
+        y_max_input.setStyleSheet(y_min_input.styleSheet())
 
-        self.tab_x_max_input = QtWidgets.QLineEdit()
-        self.tab_x_max_input.setPlaceholderText("X max")
-        self.tab_x_max_input.setMaximumSize(70, 31)
-        self.tab_x_max_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_wave_x_layout2.addWidget(self.tab_x_max_input)
+        # Set 버튼
+        set_btn = create_responsive_button("Set", 60, 25, "default")
 
-        self.tab_wave_x_set = QtWidgets.QPushButton("Set")
-        self.tab_wave_x_set.setMaximumSize(70, 31)
-        self.tab_wave_x_layout2.addWidget(self.tab_wave_x_set)
+        # Auto Y
+        auto_y = QtWidgets.QCheckBox("Auto Y")
+        auto_y.setChecked(True)
+        auto_y.setStyleSheet("color: white; font-size: 10pt;")
 
-        self.tab_y_min_wave_input = QtWidgets.QLineEdit()
-        self.tab_y_min_wave_input.setPlaceholderText("Y min")
-        self.tab_y_min_wave_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_y_min_wave_input.setMaximumSize(70, 31)
-        self.tab_wave_y_layout2.addWidget(self.tab_y_min_wave_input)
+        # 레이아웃
+        layout.addWidget(auto_x)
+        layout.addWidget(auto_scale_btn)
+        layout.addWidget(y_min_label)
+        layout.addWidget(y_min_input)
+        layout.addWidget(y_max_label)
+        layout.addWidget(y_max_input)
+        layout.addWidget(set_btn)
+        layout.addWidget(auto_y)
+        layout.addStretch()
 
-        self.tab_y_max_wave_input = QtWidgets.QLineEdit()
-        self.tab_y_max_wave_input.setPlaceholderText("Y max")
-        self.tab_y_max_wave_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_y_max_wave_input.setMaximumSize(70, 31)
-        self.tab_wave_y_layout2.addWidget(self.tab_y_max_wave_input)
+        # 속성 저장
+        prefix = "tab_waveform" if graph_type == "waveform" else "tab_spectrum"
+        setattr(self, f"{prefix}_auto_x", auto_x)
+        setattr(self, f"{prefix}_auto_scale", auto_scale_btn)
+        setattr(self, f"{prefix}_y_min", y_min_input)
+        setattr(self, f"{prefix}_y_max", y_max_input)
+        setattr(self, f"{prefix}_set", set_btn)
+        setattr(self, f"{prefix}_auto_y", auto_y)
 
-        self.tab_wave_y_set = QtWidgets.QPushButton("Set")
-        self.tab_wave_y_set.setMaximumSize(70, 31)
-        self.tab_wave_y_layout2.addWidget(self.tab_wave_y_set)
+        return panel
 
-        self.tab_wave_x_set.clicked.connect(self.set_wave_x_axis)
-        self.tab_wave_y_set.clicked.connect(self.set_wave_y_axis)
-        self.tab_wave_x_autoscale.clicked.connect(self.auto_wave_scale_x)
-        self.tab_wave_y_autoscale.clicked.connect(self.auto_wave_scale_y)
+    def create_button_panel(self):
+        """하단 버튼 패널"""
+        panel = QtWidgets.QWidget()
+        layout = QtWidgets.QHBoxLayout(panel)
+        layout.setContentsMargins(0, 0, 0, 0)
 
-        self.tab_wave_x_layout.addStretch()
-        self.tab_wave_y_layout.addStretch()
-        self.tab_wave_x_layout2.addStretch()
-        self.tab_wave_y_layout2.addStretch()
-
-        self.tab_wave_scale_layout.addLayout(self.tab_wave_x_layout)
-        self.tab_wave_scale_layout.addLayout(self.tab_wave_x_layout2)
-        self.tab_wave_scale_layout.addLayout(self.tab_wave_y_layout)
-        self.tab_wave_scale_layout.addLayout(self.tab_wave_y_layout2)
-        self.tab_wave_scale_layout.setAlignment(self.tab_wave_x_layout, QtCore.Qt.AlignVCenter)
-        self.tab_wave_scale_layout.setAlignment(self.tab_wave_x_layout2, QtCore.Qt.AlignVCenter)
-        self.tab_wave_scale_layout.setAlignment(self.tab_wave_y_layout, QtCore.Qt.AlignVCenter)
-        self.tab_wave_scale_layout.setAlignment(self.tab_wave_y_layout2, QtCore.Qt.AlignTop)
-        self.tab_wave_scale_layout.addStretch(2)
-
-        #self.tab_layout.addLayout(self.tab_wave_scale_layout, 0, 2, 1, 1)
-
-        #spectrum
-        self.tab_spectrum_scale_layout = QtWidgets.QVBoxLayout()
-        self.tab_spectrum_scale_layout.addStretch(2)
-
-        self.tab_spectrum_x_layout = QtWidgets.QHBoxLayout()
-        self.tab_spectrum_x_layout2 = QtWidgets.QHBoxLayout()
-        self.tab_spectrum_y_layout = QtWidgets.QHBoxLayout()
-        self.tab_spectrum_y_layout2 = QtWidgets.QHBoxLayout()
-        # ✅ X축, Y축 Limit 설정 UI 추가
-        self.tab_auto_spectrum_x = QtWidgets.QCheckBox("Auto X")
-        self.tab_auto_spectrum_x.setChecked(True)  # 기본값 Auto
-        self.tab_spectrum_x_layout.addWidget(self.tab_auto_spectrum_x)
-
-        self.tab_spectrum_x_autoscale = QtWidgets.QPushButton("Auto Scale")
-        self.tab_spectrum_x_autoscale.setMaximumSize(100, 31)
-        self.tab_spectrum_x_layout.addWidget(self.tab_spectrum_x_autoscale)
-
-        self.tab_auto_spectrum_y = QtWidgets.QCheckBox("Auto Y")
-        self.tab_auto_spectrum_y.setChecked(True)
-        self.tab_spectrum_y_layout.addWidget(self.tab_auto_spectrum_y)
-
-        self.tab_spectrum_y_autoscale = QtWidgets.QPushButton("Auto Scale")
-        self.tab_spectrum_y_autoscale.setMaximumSize(100, 31)
-        self.tab_spectrum_y_layout.addWidget(self.tab_spectrum_y_autoscale)
-
-        self.tab_spectrum_x_min_input = QtWidgets.QLineEdit()
-        self.tab_spectrum_x_min_input.setPlaceholderText("X min")
-        self.tab_spectrum_x_min_input.setMaximumSize(70, 31)
-        self.tab_spectrum_x_min_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_spectrum_x_layout2.addWidget(self.tab_spectrum_x_min_input)
-
-        self.tab_spectrum_x_max_input = QtWidgets.QLineEdit()
-        self.tab_spectrum_x_max_input.setPlaceholderText("X max")
-        self.tab_spectrum_x_max_input.setMaximumSize(70, 31)
-        self.tab_spectrum_x_max_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_spectrum_x_layout2.addWidget(self.tab_spectrum_x_max_input)
-
-        self.tab_spectrum_x_set = QtWidgets.QPushButton("Set")
-        self.tab_spectrum_x_set.setMaximumSize(70, 31)
-        self.tab_spectrum_x_layout2.addWidget(self.tab_spectrum_x_set)
-
-        self.tab_spectrum_y_min_input = QtWidgets.QLineEdit()
-        self.tab_spectrum_y_min_input.setPlaceholderText("Y min")
-        self.tab_spectrum_y_min_input.setMaximumSize(70, 31)
-        self.tab_spectrum_y_min_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_spectrum_y_layout2.addWidget(self.tab_spectrum_y_min_input)
-
-        self.tab_spectrum_y_max_input = QtWidgets.QLineEdit()
-        self.tab_spectrum_y_max_input.setPlaceholderText("Y max")
-        self.tab_spectrum_y_max_input.setMaximumSize(70, 31)
-        self.tab_spectrum_y_max_input.setStyleSheet("""background-color: lightgray;color: black;""")
-        self.tab_spectrum_y_layout2.addWidget(self.tab_spectrum_y_max_input)
-
-        self.tab_spectrum_y_set = QtWidgets.QPushButton("Set")
-        self.tab_spectrum_y_set.setMaximumSize(70, 31)
-        self.tab_spectrum_y_layout2.addWidget(self.tab_spectrum_y_set)
-
-        self.tab_spectrum_x_set.clicked.connect(self.set_x_axis)
-        self.tab_spectrum_y_set.clicked.connect(self.set_y_axis)
-        self.tab_spectrum_x_autoscale.clicked.connect(self.auto_scale_x)
-        self.tab_spectrum_y_autoscale.clicked.connect(self.auto_scale_y)
-
-        self.tab_save_button = QtWidgets.QPushButton("Data Extraction")
-        # self.save_button.setGeometry(QtCore.QRect(1750, 205, 80, 30))
+        self.tab_save_button = create_responsive_button("Data Extraction", 120, 35)
         self.tab_save_button.clicked.connect(self.on_save_button_clicked)
 
-        self.tab_spectrum_x_layout.addStretch()
-        self.tab_spectrum_x_layout2.addStretch()
-        self.tab_spectrum_y_layout.addStretch()
-        self.tab_spectrum_y_layout2.addStretch()
+        self.tab_close_button = create_responsive_button("Close", 120, 35)
+        self.tab_close_button.clicked.connect(self.close_dialog)
 
-        self.tab_spectrum_scale_layout.addLayout(self.tab_spectrum_x_layout)
-        self.tab_spectrum_scale_layout.addLayout(self.tab_spectrum_x_layout2)
-        self.tab_spectrum_scale_layout.addLayout(self.tab_spectrum_y_layout)
-        self.tab_spectrum_scale_layout.addLayout(self.tab_spectrum_y_layout2)
-        self.tab_spectrum_scale_layout.setAlignment(self.tab_spectrum_x_layout, QtCore.Qt.AlignVCenter)
-        self.tab_spectrum_scale_layout.setAlignment(self.tab_spectrum_x_layout2, QtCore.Qt.AlignVCenter)
-        self.tab_spectrum_scale_layout.setAlignment(self.tab_spectrum_y_layout, QtCore.Qt.AlignVCenter)
-        self.tab_spectrum_scale_layout.setAlignment(self.tab_spectrum_y_layout2, QtCore.Qt.AlignTop)
+        layout.addWidget(self.tab_save_button)
+        layout.addWidget(self.tab_close_button)
+        layout.addStretch()
 
-        self.tab_spectrum_scale_layout.addWidget(self.tab_save_button)
-        self.tab_spectrum_scale_layout.addStretch(2)
+        return panel
 
-        spec_scale_widget = QtWidgets.QWidget()
-        spec_scale_widget.setLayout(self.tab_spectrum_scale_layout)
+    # ===== 파일 리스트 관리 =====
+    def populate_list_widget(self):
+        """파일 리스트 채우기"""
+        self.list_widget.clear()
 
-        wave_scale_widget = QtWidgets.QWidget()
-        wave_scale_widget.setLayout(self.tab_wave_scale_layout)
+        all_files = []
+        for ch, files in self.channel_files.items():
+            all_files.extend(files)
 
-        # 수평 Splitter - Wave
-        wave_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        wave_splitter.addWidget(self.tab_wavecanvas)
-        wave_splitter.addWidget(wave_scale_widget)
+        # 중복 제거 및 정렬
+        unique_files = sorted(set(all_files))
+        self.list_widget.addItems(unique_files)
 
-        # 수평 Splitter - Spec
-        spec_splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-        spec_splitter.addWidget(self.tab_canvas)
-        spec_splitter.addWidget(spec_scale_widget)
-
-        # 수직 Splitter - 상단: Wave / 하단: Spec
-        main_splitter = QtWidgets.QSplitter(QtCore.Qt.Vertical)
-        main_splitter.addWidget(wave_splitter)
-        main_splitter.addWidget(spec_splitter)
-
-        # 전체 레이아웃에 추가
-        self.tab_layout.addWidget(main_splitter, 0, 1, 1, 7)
-
-        # Stretch 비율 조정 (선택사항)
-        main_splitter.setStretchFactor(0, 1)  # wave 영역
-        main_splitter.setStretchFactor(1, 1)  # spec 영역
-
-        wave_splitter.setStretchFactor(0, 5)  # wave canvas
-        wave_splitter.setStretchFactor(1, 1)  # wave scale
-
-        spec_splitter.setStretchFactor(0, 5)  # spec canvas
-        spec_splitter.setStretchFactor(1, 1)  # spec scale
-
-        self.setLayout(self.layout)
-        self.layout.addLayout(self.tab_layout)
-        self.hover_pos_spect = [None, None]  # 현재 hover_dot 위치 저장 (float x, y) spectrum
-        self.markers_spect = []  # 마커와 텍스트를 저장할 리스트
-        self.mouse_tracking_enabled = True  # 기본값은 True로 설정
-
-    def get_selected_files(self):
-        return [
-            item.text()
-            for i in range(self.list_widget.count())
-            if (item := self.list_widget.item(i)).isSelected() and item.flags() != QtCore.Qt.NoItemFlags
-        ]
-
-    def parse_array_string(self, s):
-        import re
-        # 숫자 또는 지수 표기된 수 추출 (예: 1.23e+02)
-        return np.array([float(val) for val in re.findall(r"[-+]?\d*\.\d+|\d+e[-+]?\d+", s)])
-
-    def on_file_itmes_clicked(self):
-        self.data_dict = {}  # 파일별 (x_data, y_data)
-        self.clear_all_graphs()
-
+    # ===== Plot 버튼 핸들러 =====
+    def on_file_items_clicked(self):
+        """Plot 버튼 클릭 시 선택된 파일들 로드 및 그래프 그리기"""
         selected_items = self.list_widget.selectedItems()
-        total_files = len(selected_items)
 
-        if total_files == 0:
+        if not selected_items:
             QtWidgets.QMessageBox.warning(self, "경고", "파일을 선택하세요")
             return
 
-        # ✅ ProgressDialog 생성 및 띄우기
-        progress_dialog = ProgressDialog(total_files, self)
-        progress_dialog.setModal(True)  # 사용자 입력 막기 (선택사항)
-        progress_dialog.show()
-
-        try:
-            for i, item in enumerate(selected_items):
-                selected_file = item.text()
-
-                # ⭐ 안전하게 파일 로드
-                try:
-                    self.load_and_plot_file(selected_file)
-                except Exception as e:
-                    print(f"⚠️ {selected_file} 처리 오류: {e}")
-                    import traceback
-                    traceback.print_exc()
-
-                progress_dialog.update_progress(i + 1)
-                QtWidgets.QApplication.processEvents()
-                progress_dialog.label.setText("완료되었습니다.")
-                QtCore.QThread.msleep(300)  # 조금 보여주고 닫기
-                progress_dialog.close()
-
-            # 완료 후 그래프 마무리
-            self.finalize_plot()
-
-        except Exception as e:
-            print(f"❌ 전체 처리 오류: {e}")
-            import traceback
-            traceback.print_exc()
-        finally:
-            progress_dialog.close()
-
-
-    def clear_all_graphs(self):
+        # 그래프 초기화
         self.tab_waveax.clear()
         self.tab_ax.clear()
-        self.tab_wavecanvas.draw()
-        self.tab_canvas.draw()
+
+        # 색상 순환
         self.color_cycle = itertools.cycle(plt.cm.tab10.colors)
 
-    def mdl_FFT_N(self, type_flag, tfs, X, res, ovrl, win, sgnl, conv2sgnl, Zpadding):
-        """
-                FFT Analyze Module (Number)
+        # 데이터 저장용
+        self.data_dict = {}
+        self.spectrum_data_dict1 = {}
 
-                Parameters:
-                type_flag : 1 for time vector input, 2 for sampling frequency input.
-                tfs       : Time vector (if type_flag==1) or Sampling frequency (if type_flag==2).
-                X         : Time signal vector or matrix (shape: (L, Ch)).
-                res       : Frequency Resolution.
-                ovrl      : Overlapping percentage. (0, 25, 50, 75)
-                win       : Window type (0: rectangular, 1: hanning, 2: flattop)
-                sgnl      : Input signal type (1: Acc, 2: Vel, 3: Disp)
-                conv2sgnl : Convert to (1: Acc, 2: Vel, 3: Disp)
-                Zpadding  : Zero padding frequency threshold (Hz). If nonzero, frequencies < (Zpadding+0.01) set to zero.
+        # 선택된 파일들 로드
+        for item in selected_items:
+            file_name = item.text()
+            self.load_and_plot_file(file_name)
 
-                Returns:
-                f   : Frequency vector.
-                P   : FFT spectrum (averaged) for each channel.
-                ACF : Amplitude Correction Factor.
-                ECF : Energy Correction Factor.
-                """
-        X = np.atleast_2d(X)  # ensure X is 2D: (L, Ch)
-        L, Ch = X.shape
-        if type_flag == 1:
-            t = np.asarray(tfs).flatten()
-            dt = t[1] - t[0]
-            Fs = 1 / dt
-        elif type_flag == 2:
-            Fs = tfs
-            dt = 1 / Fs
-            t = np.arange(L) * dt
-        else:
-            raise ValueError("type_flag must be 1 or 2.")
+        # 그래프 마무리
+        self.finalize_plot()
 
-        # Segment length based on frequency resolution: l = floor(Fs/res)
-        l = int(np.floor(Fs / res))
-        if Fs / res > L:
-            raise ValueError(f"Frequency Resolution should be larger than {Fs / L:.2f}.")
-
-        # Determine step size based on overlapping percentage
-        if ovrl == 0:
-            step = l
-        elif ovrl == 25:
-            step = int(np.ceil(l * 3 / 4))
-        elif ovrl == 50:
-            step = int(np.ceil(l / 2))
-        elif ovrl == 75:
-            step = int(np.ceil(l / 4))
-        else:
-            raise ValueError("ovrl must be one of: 0, 25, 50, 75.")
-
-        # Compute number of segments (per channel)
-        num_segments = 1 + (L - l) // step
-        segments = {}
-        t_segments = []
-
-        for seg in range(num_segments):
-            start = seg * step
-            end = start + l
-            if end > L:
-                break  # safety check
-            t_seg = t[start:end]
-            t_segments.append(t_seg)
-            for ch in range(Ch):
-                if ch not in segments:
-                    segments[ch] = []
-                segments[ch].append(X[start:end, ch])
-        # Convert lists to arrays: each becomes shape (num_segments, l)
-        for ch in range(Ch):
-            segments[ch] = np.array(segments[ch])
-        # For time segments, shape (num_segments, l)
-        t_segments = np.array(t_segments)
-
-        # Window selection: create window vector of length l.
-        if win == 0:  # Rectangular
-            w = np.ones(l)
-        elif win == 1:  # Hanning, periodic window
-            w = hann(l, sym=False)
-        elif win == 2:  # Flattop, periodic window
-            w = flattop(l, sym=False)
-        else:
-            raise ValueError("win must be 0, 1, or 2.")
-
-        fft_segments = {}
-        for ch in range(Ch):
-            seg_win = segments[ch] * w[None, :]
-            Y = fft(seg_win, axis=1)
-            Y = Y / l
-            n_oneside = l // 2 + 1
-            Y = Y[:, :n_oneside]
-            if n_oneside > 1:
-                Y[:, 1:-1] = 2 * Y[:, 1:-1]
-            fft_segments[ch] = Y
-
-        # Average FFT spectrum over segments for each channel
-        P = []
-        for ch in range(Ch):
-            # Mean over segments (axis=0), result shape: (n_oneside,)
-            P_ch = np.mean(abs(fft_segments[ch]), axis=0)
-            P.append(P_ch)
-        P = np.column_stack(P)  # shape: (n_oneside, Ch)
-
-        # Frequency vector
-        f = Fs * np.arange(n_oneside) / l
-
-        iomega = 1j * 2 * np.pi * f
-        if sgnl == 1:  # Input: Acceleration
-            if conv2sgnl == 2:  # Convert to Velocity
-                # Avoid f==0 division: perform conversion on f>0 indices only.
-                P_conv = np.empty_like(P, dtype=complex)
-                P_conv[0, :] = 0
-                P_conv[1:, :] = P[1:, :] / iomega[1:, None]
-                P_conv = np.abs(P_conv) * 1000
-                P = P_conv
-
-            elif conv2sgnl == 3:  # Convert to Displacement
-                P_conv = np.empty_like(P, dtype=complex)
-                P_conv[0, :] = 0
-                # For f>0: divide twice by iomega
-                P_conv[1:, :] = P[1:, :] / (iomega[1:, None] ** 2)
-                P_conv = np.abs(P_conv) * 1000
-                P = P_conv
-                # Else, no conversion if conv2sgnl==1.
-        elif sgnl == 2:  # Input: Velocity
-            if conv2sgnl == 1:  # Convert to Acceleration
-                P_conv = P * iomega[:, None]
-                P_conv = np.abs(P_conv) / 1000
-                P = P_conv
-            elif conv2sgnl == 3:  # Convert to Displacement
-                P_conv = np.empty_like(P, dtype=complex)
-                P_conv[0, :] = 0
-                P_conv[1:, :] = P[1:, :] / iomega[1:, None]
-                P_conv = np.abs(P_conv)
-                P = P_conv
-        elif sgnl == 3:  # Input: Displacement
-            if conv2sgnl == 1:  # Convert to Acceleration
-                P_conv = P * (iomega[:, None] ** 2)
-                P_conv = np.abs(P_conv) / 1000
-                P = P_conv
-            elif conv2sgnl == 2:  # Convert to Velocity
-                P_conv = P * iomega[:, None]
-                P_conv = np.abs(P_conv)
-                P = P_conv
-        else:
-            raise ValueError("sgnl must be 1, 2, or 3.")
-
-        # Ensure DC component is zero as in MATLAB code
-        P[0, :] = 0
-
-        # Zero Padding: if Zpadding is nonzero, set spectrum values to zero for frequencies < (Zpadding+0.01)
-        if Zpadding != 0:
-            idx = np.where(f < (Zpadding + 0.01))[0]
-            P[idx, :] = 0
-
-        # Correction Factors
-        ACF = 1 / (np.mean(w) * np.sqrt(2))
-        rms_w = np.sqrt(np.mean(w ** 2))
-        ECF = 1 / (rms_w * np.sqrt(2))
-
-        # Power Spectral Density (Sxx) 추가
-        Sxx = (P ** 2) / (Fs / l)
-
-        return w, f, P, ACF, ECF, rms_w, Sxx
-
-    def load_txt_file_only(self, file_path):
-        """
-                ✨ 최적화된 파일 로딩 (NumPy + 캐싱)
-                - NumPy 직접 로딩: 3-5배 빠름
-                - 캐싱: 반복 실행 시 10배 이상 빠름
-                """
-        try:
-            # 캐시를 사용한 빠른 로딩
-            if hasattr(self, 'file_cache'):
-                data = self.file_cache.load_with_cache(file_path)
-                return data
-        except Exception as e:
-            perf_logger.log_warning(f"⚠️ 캐시 로딩 실패, 기존 방식 사용: {e}")
-
-        # 폴백: 기존 방식
-        data = []
-        with open(file_path, 'r') as f:
-            for line in f:
-                line = line.strip()
-                try:
-                    data.append(float(line))
-                except ValueError:
-                    continue
-        return np.array(data)
-
-    def get_json_value(self, metadata, key, default=None, value_type=None):
-        val = metadata.get(key, default)  # metadata는 dict 여야 함
-        if val is None:
-            return default
-        if value_type:
-            try:
-                val = value_type(val)
-            except Exception as e:
-                print(f"⚠ {key} 타입 변환 오류: {e}, 기본값 사용")
-                val = default
-        return val
-
+    # ===== 파일 로드 및 그래프 그리기 =====
     def load_and_plot_file(self, file_name):
-        """개별 파일 로드 및 플로팅"""
-
-        # ⭐ 전체 경로 생성 (변수명 통일)
-        if hasattr(self, 'directory_path') and self.directory_path:
-            file_path = os.path.join(self.directory_path, file_name)
-        else:
-            file_path = file_name
-
-        # ⭐ 파일 존재 확인
-        if not os.path.exists(file_path):
-            print(f"⚠️ 파일 없음: {file_path}")
+        """개별 파일 로드 및 그래프에 추가"""
+        if not self.directory_path:
+            print("❌ directory_path가 설정되지 않았습니다")
             return
 
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
+        file_path = os.path.join(self.directory_path, file_name)
 
-        # ===== JSON에서 메타데이터 읽기 =====
-        json_folder = os.path.join(self.directory_path, "trend_data") if self.directory_path else "trend_data"
-        json_path = os.path.join(json_folder, f"{base_name}.json")
+        if not os.path.exists(file_path):
+            print(f"❌ 파일 없음: {file_path}")
+            return
 
-        metadata = {}
-        if os.path.exists(json_path):
-            try:
-                # ⭐ 수정: 파일 경로를 직접 전달 (파일 객체 X)
-                metadata = load_json(json_path)
-                print(f"✅ JSON 로드 성공: {json_path}")
-            except Exception as e:
-                print(f"⚠️ JSON 읽기 오류: {json_path}, {e}")
-                import traceback
-                traceback.print_exc()
-        else:
-            print(f"⚠️ JSON 파일 없음: {json_path}")
-
-            # ===== TXT 파일에서 데이터 로드 =====
         try:
-            # ⭐ 수정: 직접 파일 읽기 (메타데이터 건너뛰기)
-            with open(file_path, 'r', encoding='utf-8') as f:
-                lines = f.readlines()
+            # ===== 1. 파일 파싱 =====
+            from file_parser import FileParser
+            parser = FileParser(file_path)
 
-            # 숫자만 있는 줄만 추출
-            data = []
-            for line in lines:
-                line = line.strip()
-                if not line:
-                    continue
-                # 숫자로 시작하는 줄만 (메타데이터 제외)
-                if re.match(r'^[-+]?\d*\.?\d+([eE][-+]?\d+)?$', line):
-                    try:
-                        data.append(float(line))
-                    except:
-                        continue
-
-            data = np.array(data)
-
-            if len(data) == 0:
-                print(f"⚠️ 데이터 파싱 실패: {file_name}")
+            # ✅ 파싱 성공 여부 확인
+            if not parser.is_valid():
+                print(f"⚠️ 파일 파싱 실패: {file_name}")
                 return
 
-            print(f"ℹ️ {file_name}: 데이터 {len(data)}개 로드됨")
+            # ✅ 데이터 및 메타데이터 추출
+            data = parser.get_data()
+            metadata = parser.get_all_metadata()
 
-        except Exception as e:
-            print(f"❌ 파일 로드 실패: {file_path}, {e}")
-            return
+            if data is None or len(data) == 0:
+                print(f"⚠️ 데이터 없음: {file_name}")
+                return
 
-        if data is None or len(data) == 0:
-            print(f"⚠️ 데이터 없음: {file_name}")
-            return
+            # ===== 2. 시간 벡터 생성 =====
+            sampling_rate = parser.get_sampling_rate()
+            dt = 1.0 / sampling_rate
+            time = np.arange(len(data)) * dt
 
-        # ===== 파라미터 추출 =====
-        sampling_rate = self.get_json_value(metadata, "sampling_rate", value_type=float)
-        delta_f = self.get_json_value(metadata, "delta_f", value_type=float)
-        overlap = self.get_json_value(metadata, "overlap", value_type=float)
-        window_str = self.get_json_value(metadata, "window", default="hanning", value_type=str)
-        view_type_str = self.get_json_value(metadata, "view_type", default="ACC", value_type=str)
+            # ===== 3. 색상 선택 =====
+            color = next(self.color_cycle)
 
-        b_sensitivity = self.get_json_value(metadata, "b_sensitivity", value_type=str)
-        sensitivity = self.get_json_value(metadata, "sensitivity", value_type=str)
-
-        # 디버그 출력 제거 (불필요한 !!!!!!! 로그)
-        # print(f"!!!!!!!!!!{sampling_rate}") <- 이런 것들 전부 제거
-
-        # ⭐ 필수 파라미터 검증
-        if sampling_rate is None or sampling_rate <= 0:
-            print(f"⚠️ {file_name}: sampling_rate 없음 또는 유효하지 않음")
-            return
-
-        if delta_f is None or delta_f <= 0:
-            delta_f = 1.0  # 기본값
-
-        if overlap is None:
-            overlap = 50.0  # 기본값
-
-        # ===== 민감도 보정 =====
-        def extract_numeric(s):
-            if s is None:
-                return None
-            match = re.search(r"[-+]?[0-9]*\.?[0-9]+", str(s))
-            return float(match.group()) if match else None
-
-        try:
-            if b_sensitivity and sensitivity:
-                b_sens = extract_numeric(b_sensitivity)
-                sens = extract_numeric(sensitivity)
-                if b_sens and sens and sens != 0:
-                    data = (b_sens / sens) * data
-        except Exception as e:
-            print(f"⚠️ 민감도 보정 오류: {e}")
-
-        # ===== FFT 최소 길이 보장 =====
-        # ===== Delta_f 계산 (중요!) =====
-        N = len(data)
-
-        # ⭐ 1단계: 실제 데이터 기반 최소 delta_f
-        delta_f_min = sampling_rate / N
-        print(f"ℹ️ {file_name}: N={N}, delta_f_min={delta_f_min:.2f}")
-
-        # ⭐ 2단계: JSON에서 읽은 delta_f 검증
-        if delta_f is None or delta_f <= 0:
-            delta_f = max(1.0, delta_f_min)
-            print(f"⚠️ {file_name}: delta_f 없음, 기본값 사용 ({delta_f:.2f})")
-        elif delta_f < delta_f_min:
-            print(f"⚠️ {file_name}: delta_f 너무 작음 ({delta_f:.2f} → {delta_f_min:.2f})")
-            delta_f = delta_f_min
-
-        # ⭐ 3단계: Duration 기반 재계산
-        duration_str = self.get_json_value(metadata, "duration", value_type=str)
-        if duration_str:
-            match = re.findall(r"[-+]?\d*\.\d+|\d+", duration_str)
-            if match:
-                duration_val = float(match[0])
-                if duration_val > 0:
-                    hz_value = round(1 / duration_val + 0.01, 2)
-                    delta_f = max(delta_f, hz_value)
-
-        # ⭐ 4단계: Zero Padding (필요시)
-        N_fft = int(sampling_rate / delta_f)
-        if N_fft > N:
-            print(f"ℹ️ {file_name}: Zero padding ({N} → {N_fft})")
-            data = np.pad(data, (0, N_fft - N), 'constant')
-            N = N_fft
-
-        # ⭐ 5단계: 최종 검증
-        delta_f_final = sampling_rate / N
-        if delta_f < delta_f_final:
-            print(f"⚠️ {file_name}: 최종 보정 ({delta_f:.2f} → {delta_f_final:.2f})")
-            delta_f = delta_f_final
-
-        # ===== FFT 계산 =====
-        try:
-            # ⭐ 최종 검증
-            actual_min_delta_f = sampling_rate / len(data)
-            if delta_f < actual_min_delta_f:
-                print(f"⚠️ {file_name}: 최종 delta_f 보정 ({delta_f:.2f} → {actual_min_delta_f:.2f})")
-                delta_f = actual_min_delta_f
-
-            view_type_map = {"ACC": 1, "VEL": 2, "DIS": 3}
-            conv2sgnl = view_type_map.get(view_type_str.upper(), 1)
-
-            win_flag = {"rectangular": 0, "hanning": 1, "flattop": 2}.get(window_str.lower(), 1)
-
-            w, f, P, ACF, ECF, rms_w, Sxx = self.mdl_FFT_N(
-                2,  # type_flag
-                sampling_rate,
-                data,
-                delta_f,
-                overlap,
-                win_flag,
-                1,  # 입력 신호: 가속도
-                conv2sgnl,
-                0  # Zero padding 없음
+            # ===== 4. Waveform 그래프 =====
+            self.tab_waveax.plot(
+                time, data,
+                label=file_name,
+                color=color,
+                linewidth=0.5,
+                alpha=0.8
             )
+
+            # ===== 5. FFT 계산 =====
+            from fft_engine import FFTEngine
+            engine = FFTEngine()
+
+            frequency, spectrum = engine.compute_fft(
+                data=data,
+                sampling_rate=sampling_rate,
+                window_type='hanning'
+            )
+
+            # ===== 6. Spectrum 그래프 =====
+            self.tab_ax.plot(
+                frequency, spectrum,
+                label=file_name,
+                color=color,
+                linewidth=0.5,
+                alpha=0.8
+            )
+
+            # ===== 7. 데이터 저장 =====
+            self.data_dict[file_name] = (frequency, spectrum)
+            self.spectrum_data_dict1[file_name] = spectrum
+
+            print(f"✅ 로드 완료: {file_name}")
+
         except Exception as e:
-            print(f"❌ FFT 계산 오류: {file_name}, {e}")
+            print(f"❌ {file_name} 로드 실패: {e}")
             import traceback
             traceback.print_exc()
-            return
-
-        # ===== 그래프 데이터 준비 =====
-        time = np.arange(len(data)) / sampling_rate
-
-        # ⭐ P가 2D인 경우 처리
-        if P.ndim > 1:
-            P = P[:, 0] if P.shape[1] > 0 else P.flatten()
-
-        spectrum = ACF * np.abs(P).flatten()
-
-        # ⭐ 색상 선택
-        try:
-            color = next(self.color_cycle)
-        except:
-            self.color_cycle = itertools.cycle(plt.cm.tab10.colors)
-            color = next(self.color_cycle)
-
-        # ===== Waveform 플로팅 =====
-        try:
-            self.tab_waveax.plot(time, data, label=base_name, color=color, linewidth=0.5)
-        except Exception as e:
-            print(f"⚠️ Waveform 플로팅 오류: {e}")
-
-        # ===== Spectrum 플로팅 =====
-        try:
-            self.tab_ax.plot(f, spectrum, label=base_name, color=color, linewidth=0.5)
-        except Exception as e:
-            print(f"⚠️ Spectrum 플로팅 오류: {e}")
-
-        # ===== 데이터 저장 =====
-        if not hasattr(self, 'spectrum_data_dict1'):
-            self.spectrum_data_dict1 = {}
-        if not hasattr(self, 'file_names_used1'):
-            self.file_names_used1 = []
-        if not hasattr(self, 'sample_rate1'):
-            self.sample_rate1 = {}
-        if not hasattr(self, 'data_dict'):
-            self.data_dict = {}
-
-        self.spectrum_data_dict1[base_name] = spectrum
-        self.frequency_array1 = f
-        self.file_names_used1.append(base_name)
-        self.sample_rate1[base_name] = sampling_rate
-        self.data_dict[file_path] = (f, spectrum)
-
-        # 메타데이터 저장
-        self.delta_f1 = delta_f
-        self.window_type1 = window_str
-        self.overlap1 = overlap
-        self.view_type = view_type_str
-
-        # 추가 메타데이터
-        self.dt1 = self.get_json_value(metadata, "dt", default="", value_type=str)
-        self.start_time1 = self.get_json_value(metadata, "start_time", default="", value_type=str)
-        self.Duration1 = self.get_json_value(metadata, "duration", default="", value_type=str)
-        self.Rest_time1 = self.get_json_value(metadata, "rest_time", default="", value_type=str)
-        self.repetition1 = self.get_json_value(metadata, "repetition", default="", value_type=str)
-        self.IEPE1 = self.get_json_value(metadata, "iepe", default="", value_type=str)
-        self.Sensitivity1 = self.get_json_value(metadata, "sensitivity", default="", value_type=str)
-        self.b_Sensitivity1 = self.get_json_value(metadata, "b_sensitivity", default="", value_type=str)
-        self.channel_info1 = self.get_json_value(metadata, "channel_num", default="", value_type=str)
-        self.file_name1 = base_name
-
-        # Y축 라벨 설정
-        view_labels = {
-            1: "Vibration Acceleration\n(m/s², RMS)",
-            2: "Vibration Velocity\n(mm/s, RMS)",
-            3: "Vibration Displacement\n(μm, RMS)"
-        }
-        ylabel = view_labels.get(conv2sgnl, "Vibration (mm/s, RMS)")
-
-        self.tab_ax.set_ylabel(ylabel, fontsize=7, fontname='Malgun Gothic')
-        self.tab_waveax.set_ylabel(ylabel, fontsize=7, fontname='Malgun Gothic')
-
-        print(f"✅ {file_name} 처리 완료")
 
     def finalize_plot(self):
-        self.tab_waveax.set_title("Waveform", fontsize=7, fontname='Malgun Gothic')
-        self.tab_waveax.set_xlabel("Time (s)", fontsize=7, fontname='Malgun Gothic')
-        self.tab_waveax.legend()
-        self.tab_waveax.grid(True)
-        self.tab_wavecanvas.draw()
-
-        self.tab_ax.set_title("Vibration Spectrum", fontsize=7, fontname='Malgun Gothic')
-        self.tab_ax.set_xlabel("Frequency (Hz)", fontsize=7, fontname='Malgun Gothic')
-        self.tab_ax.legend()
-        self.tab_ax.grid(True)
-        self.tab_canvas.draw()
-        self.hover_dot_spect = self.tab_ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
-        self.tab_canvas.mpl_connect("motion_notify_event", self.on_mouse_move_spect)
-        self.tab_canvas.mpl_connect("button_press_event", self.on_mouse_click)
-        self.tab_canvas.mpl_connect("key_press_event", self.on_key_press)
-
-    def start_loading_files(self, selected_files):
-        self.progress_bar.setMaximum(len(selected_files))
-        for i, file_path in enumerate(selected_files):
-            self.load_and_plot_file(file_path)
-            self.progress_bar.setValue(i + 1)
-            QtWidgets.QApplication.processEvents()
-
-    def on_mouse_move_spect(self, event):
-        if not self.mouse_tracking_enabled:  # X축 범위 설정 중에는 마우스 이벤트 무시
-            return
-        """마우스가 그래프 위를 움직일 때 가장 가까운 점을 찾아서 점 표시"""
-        if not event.inaxes:
-            if self.hover_pos_spect is not None:  # hover_pos가 None이 아니면 점을 지우기
-                self.hover_dot_spect.set_data([], [])
-                self.hover_pos_spect = None
-                self.tab_canvas.draw()
-            return
-
-        closest_x, closest_y, min_dist = None, None, np.inf  # np.inf로 수정
-
-        # 모든 라인에서 가장 가까운 점 찾기
-        for line in self.tab_ax.get_lines():
-            x_data_move, y_data_move = line.get_xdata(), line.get_ydata()
-
-            # 데이터가 없으면 건너뛴다
-            if len(x_data_move) == 0 or len(y_data_move) == 0:
-                continue
-
-            # datetime 타입이면 float(ordinal)로 변환
-            if isinstance(x_data_move[0], datetime):
-                x_data_move = mdates.date2num(x_data_move)
-                self.initialize_hover_step_spect(x_data_move, y_data_move)  # datetime 처리 후 호출
-
-            for x, y in zip(x_data_move, y_data_move):
-                dist = np.hypot(event.xdata - x, event.ydata - y)
-                if dist < min_dist:
-                    min_dist = dist
-                    closest_x, closest_y = x, y
-
-        # 가장 가까운 점이 존재하면 해당 점을 표시
-        if closest_x is not None:
-            self.hover_dot_spect.set_data([closest_x], [closest_y])
-            self.hover_pos_spect = [closest_x, closest_y]  # 현재 좌표 저장
-            self.tab_canvas.draw()
-
-    def on_mouse_click(self, event):
-        """마우스를 클릭했을 때 가장 가까운 점을 고정된 마커로 표시"""
-        if not event.inaxes:
-            return
-
-        # hover_dot 위치를 가져와서 마커로 고정
-        x, y = self.hover_dot_spect.get_data()
-
-        if x and y:
-            self.add_marker_spect(x, y)
-
-        if event.button == 3:  # 오른쪽 클릭
-            for marker, label in self.markers_spect:
-                marker.remove()
-                label.remove()
-            self.markers_spect.clear()
-
-            # for annotation in self.annotations:
-            #         annotation.remove()
-            # self.annotations.clear()
-            # for filename in self.marker_filenames:
-            #         self.remove_marker_filename_from_list(filename)
-            # self.marker_filenames.clear()
-
-            self.tab_canvas.draw()
-            return
-
-    def initialize_hover_step_spect(self, x_data, y_data):
-        x_spacing = np.mean(np.diff(x_data))
-        y_spacing = np.mean(np.diff(y_data))
-        self.hover_step = [x_spacing, y_spacing]
-
-    def on_key_press(self, event):
-        """키보드 입력 처리 (방향키로 점 이동, 엔터로 마커 고정)"""
-        x, y = self.hover_dot_spect.get_data()
-
-        # 모든 라인에서 x, y 데이터를 가져옵니다.
-        all_x_data = []
-        all_y_data = []
-        for line in self.tab_ax.get_lines():
-            x_data, y_data = line.get_xdata(), line.get_ydata()
-            if len(x_data) == 0 or len(y_data) == 0:
-                continue
-            if isinstance(x_data[0], datetime):
-                x_data = mdates.date2num(x_data)
-            all_x_data.extend(x_data)
-            all_y_data.extend(y_data)
-            self.initialize_hover_step_spect(x_data, y_data)
-
-        # 현재 x, y를 기준으로 가장 가까운 점을 찾기
-        closest_index = None
-        current_index = None
-        min_dist = np.inf
-        for idx, (x_val, y_val) in enumerate(zip(all_x_data, all_y_data)):
-            dist = np.hypot(x - x_val, y - y_val)
-            if dist < min_dist:
-                min_dist = dist
-                current_index = idx
-
-        if current_index is None:
-            return  # 아무 데이터도 없으면 종료
-
-        # 이동할 다음 데이터 찾기
-        candidates = []
-        if event.key == 'left':
-            # x값이 작아지는 방향으로 이동
-            candidates = [(i, abs(all_x_data[i] - x)) for i in range(len(all_x_data)) if all_x_data[i] < x]
-        elif event.key == 'right':
-            # x값이 커지는 방향으로 이동
-            candidates = [(i, abs(all_x_data[i] - x)) for i in range(len(all_x_data)) if all_x_data[i] > x]
-        elif event.key == 'up':
-            candidates = [
-                (i, abs(all_y_data[i] - y))
-                for i in range(len(all_y_data))
-                if abs(all_x_data[i] - x) < 1e-6 and all_y_data[i] > y
-            ]
-        elif event.key == 'down':
-            candidates = [
-                (i, abs(all_y_data[i] - y))
-                for i in range(len(all_y_data))
-                if abs(all_x_data[i] - x) < 1e-6 and all_y_data[i] < y
-            ]
-        elif event.key == 'enter':
-            self.add_marker_spect(all_x_data[current_index], all_y_data[current_index])
-            return
-        if candidates:
-            # 가장 가까운 x 또는 y를 가진 index 선택
-            candidates.sort(key=lambda t: t[1])  # 거리 기준 정렬
-            current_index = candidates[0][0]
-
-        # 이동된 위치로 hover_dot 위치 업데이트
-        new_x = all_x_data[current_index]
-        new_y = all_y_data[current_index]
-        self.hover_pos_spect = [new_x, new_y]
-        self.hover_dot_spect.set_data([new_x], [new_y])
-        self.tab_canvas.draw()
-
-    def add_marker_spect(self, x, y):
-        """마커 점과 텍스트를 동시에 추가"""
-
-        min_distance = float('inf')
-        closest_file = None
-        closest_x = closest_y = None
-        closest_index = None
-
-        for file_name, (data_x, data_y) in self.data_dict.items():
-            x_array = np.array(data_x)
-            y_array = np.array(data_y)
-            idx = (np.abs(x_array - x)).argmin()
-            x_val = x_array[idx]
-            y_val = y_array[idx]
-
-            # y_input이 있으면 마우스 클릭 거리로, 없으면 x 거리만
-            if y is not None:
-                dist = np.hypot(x_val - x, y_val - y)
-            else:
-                dist = abs(x_val - x)
-
-            dist = np.hypot(x_val - x, y_val - y)
-
-            if dist < min_distance:
-                min_distance = dist
-                closest_file = file_name
-                closest_x, closest_y = x_val, y_val
-                matched_index = idx
-
-        if closest_file is not None:
-            x_list, y_list = self.data_dict[closest_file]
-            if (
-                    matched_index is not None
-                    and matched_index < len(x_list)
-                    and x_list[matched_index] == closest_x
-                    and y_list[matched_index] == closest_y
-            ):
-                marker = \
-                self.tab_ax.plot(np.round(closest_x, 4), np.round(closest_y, 4), marker='o', color='red', markersize=7)[
-                    0]
-
-            label = self.tab_ax.text(
-                float(closest_x), float(closest_y) + 0.001,
-                f"file: {closest_file}\nX: {float(closest_x):.4f}, Y: {float(closest_y):.4f}",
-                fontsize=7, fontweight='bold', color='black',
-                ha='center', va='bottom'
-            )
-            self.markers_spect.append((marker, label))
-            # self.annotations.append(annotation)
-            self.tab_canvas.draw()
-
-    def set_x_axis(self):
-        try:
-            # 현재 그래프의 첫 번째 축 객체와 그 안의 라인 객체들
-            ax = self.tab_canvas.figure.axes[0]  # matplotlib 축 객체
-            lines = ax.get_lines()  # 그래프 라인들
-
-            x_min = float(self.tab_spectrum_x_min_input.text())
-            x_max = float(self.tab_spectrum_x_max_input.text())
-            if x_min >= x_max:
-                raise ValueError
-
-            self.tab_auto_spectrum_x.setChecked(False)
-            self.tab_ax.set_xlim(x_min, x_max)
-
-            y_data_in_x_range = []
-            for line in lines:
-                x_data = line.get_xdata()  # 현재 라인의 X 데이터
-                y_data = line.get_ydata()  # 현재 라인의 Y 데이터
-
-                # x_data가 list라면 NumPy 배열로 변환
-                x_data = np.array(x_data)
-                y_data = np.array(y_data)  # y_data도 NumPy 배열로 변환
-
-                mask = (x_data >= x_min) & (x_data <= x_max)  # X 범위에 해당하는 값들만 필터링
-                y_filtered = y_data[mask]  # 해당 범위의 Y값만 추출
-                y_data_in_x_range.extend(y_filtered)  # Y 데이터 모은 리스트에 추가
-
-            if y_data_in_x_range:  # 데이터가 있을 경우만
-                y_min = min(y_data_in_x_range)
-                y_max = max(y_data_in_x_range)
-                ax.set_ylim(y_min, y_max)  # Y축 범위 설정
-
-            self.tab_auto_spectrum_y.setChecked(False)  # Y축 자동 스케일 해제
-
-            self.tab_canvas.draw()
-        except ValueError:
-            print("")
-
-    def set_y_axis(self):
-        try:
-            y_min = float(self.tab_spectrum_y_min_input.text())
-            y_max = float(self.tab_spectrum_y_max_input.text())
-            if y_min >= y_max:
-                raise ValueError
-            self.tab_auto_spectrum_y.setChecked(False)
-            self.tab_ax.set_ylim(y_min, y_max)
-            self.tab_canvas.draw()
-        except ValueError:
-            print("")
-
-    def auto_scale_x(self):
-        """Spectrum X축 Auto Scale - 입력 필드 비우기"""
-        for marker, label in self.markers:
-            marker.remove()
-            label.remove()
-        self.markers.clear()
-
-        # ⭐ 입력 필드 비우기
-        self.spectrum_x_min_input.clear()
-        self.spectrum_x_max_input.clear()
-
-        ax = self.canvas.figure.axes[0]
-        self.auto_spectrum_x.setChecked(True)
-        self.auto_spectrum_y.setChecked(True)
-        ax.autoscale(enable=True, axis='x')
-        self.canvas.draw()
-
-    def auto_scale_y(self):
-        """Spectrum Y축 Auto Scale - 입력 필드 비우기"""
-        for marker, label in self.markers:
-            marker.remove()
-            label.remove()
-        self.markers.clear()
-
-        # ⭐ 입력 필드 비우기
-        self.spectrum_y_min_input.clear()
-        self.spectrum_y_max_input.clear()
-
-        ax = self.canvas.figure.axes[0]
-        self.auto_spectrum_y.setChecked(True)
-        ax.autoscale(enable=True, axis='y')
-        self.canvas.draw()
-
-    def set_wave_x_axis(self):
-        try:
-            # 현재 그래프의 첫 번째 축 객체와 그 안의 라인 객체들
-            ax = self.tab_wavecanvas.figure.axes[0]  # matplotlib 축 객체
-            lines = ax.get_lines()  # 그래프 라인들
-
-            x_min = float(self.tab_x_min_input.text())
-            x_max = float(self.tab_x_max_input.text())
-            if x_min >= x_max:
-                raise ValueError
-
-            self.tab_auto_wave_x.setChecked(False)
-            self.tab_waveax.set_xlim(x_min, x_max)
-
-            y_data_in_x_range = []
-            for line in lines:
-                x_data = line.get_xdata()  # 현재 라인의 X 데이터
-                y_data = line.get_ydata()  # 현재 라인의 Y 데이터
-                mask = (x_data >= x_min) & (x_data <= x_max)  # X 범위에 해당하는 값들만 필터링
-                y_filtered = y_data[mask]  # 해당 범위의 Y값만 추출
-                y_data_in_x_range.extend(y_filtered)  # Y 데이터 모은 리스트에 추가
-
-            if y_data_in_x_range:  # 데이터가 있을 경우만
-                y_min = min(y_data_in_x_range)
-                y_max = max(y_data_in_x_range)
-                ax.set_ylim(y_min, y_max)  # Y축 범위 설정
-
-            self.tab_auto_wave_y.setChecked(False)  # Y축 자동 스케일 해제
-
-            self.tab_wavecanvas.draw()
-        except ValueError:
-            print("")
-
-    def set_wave_y_axis(self):
-        try:
-            y_min = float(self.tab_y_min_wave_input.text())
-            y_max = float(self.tab_y_max_wave_input.text())
-            if y_min >= y_max:
-                raise ValueError
-            self.tab_auto_wave_y.setChecked(False)
-            self.tab_waveax.set_ylim(y_min, y_max)
-            self.tab_wavecanvas.draw()
-        except ValueError:
-            print("")
-
-    def auto_wave_scale_x(self):
-        """Waveform X축 Auto Scale - 입력 필드 비우기"""
-        # ⭐ 입력 필드 비우기
-        self.x_min_input.clear()
-        self.x_max_input.clear()
-
-        ax = self.wavecanvas.figure.axes[0]
-        self.auto_wave_x.setChecked(True)
-        self.auto_wave_y.setChecked(True)
-        ax.autoscale(enable=True, axis='x')
-        self.wavecanvas.draw()
-
-    def auto_wave_scale_y(self):
-        """Waveform Y축 Auto Scale - 입력 필드 비우기"""
-        # ⭐ 입력 필드 비우기
-        self.y_min_wave_input.clear()
-        self.y_max_wave_input.clear()
-
-        ax = self.wavecanvas.figure.axes[0]
-        self.auto_wave_y.setChecked(True)
-        ax.autoscale(enable=True, axis='y')
-        self.wavecanvas.draw()
-
-    def on_save_button_clicked(self):
-        # Spectrum이 아닌 경우 저장하지 않음
-        if not hasattr(self, 'spectrum_data_dict1') or not self.spectrum_data_dict1:
-            return
-
-        self.tab_save_spectrum_to_csv(
-            self.spectrum_data_dict1,
-            # self.metadata_dict,
-            self.frequency_array1,
-            self.file_names_used1,
-            self.delta_f1,
-            self.window_type1,
-            self.overlap1,
-            self.channel_info1,
-            self.sample_rate1,
-            self.dt1,
-            self.start_time1,
-            self.Duration1,
-            self.Rest_time1,
-            self.repetition1,
-            self.IEPE1,
-            self.Sensitivity1,
-            self.b_Sensitivity1,
-            self.channel_infos1,
-            self.view_type,
-            self.file_name1
+        """그래프 마무리"""
+        # Waveform
+        self.apply_responsive_figure_style(
+            self.tab_waveform_figure, self.tab_waveax,
+            title="Waveform", xlabel="Time (s)", ylabel="Amplitude"
         )
-        # print(f"{self.file_names_used}")
+        self.update_legend_position(self.tab_waveax, max_items=15)
 
-    def tab_save_spectrum_to_csv(self, spectrum_data1, frequencies1, file_names1, delta_f1, window_type1, overlap1,
-                                 channel_info1, sampling_rates1, dt1, start_time1, Duration1, Rest_time1, repetition1,
-                                 IEPE1, Sensitivity1, b_Sensitivity1, channel_infos1, view_type, file_name1):
-        # 🔽 파일 저장 위치 선택
-        save_path, _ = QFileDialog.getSaveFileName(None, "Save CSV File", "", "CSV Files (*.csv)")
+        # Spectrum
+        self.apply_responsive_figure_style(
+            self.tab_figure, self.tab_ax,
+            title="Vibration Spectrum", xlabel="Frequency (Hz)", ylabel="Amplitude"
+        )
+        self.update_legend_position(self.tab_ax, max_items=15)
+
+        # tight_layout 적용
+        try:
+            self.tab_waveform_figure.tight_layout(rect=[0, 0, 0.85, 1])
+            self.tab_figure.tight_layout(rect=[0, 0, 0.85, 1])
+        except:
+            pass
+
+        # 캔버스 그리기
+        self.tab_wavecanvas.draw_idle()
+        self.tab_canvas.draw_idle()
+
+        QtWidgets.QApplication.processEvents()
+
+        self.tab_wavecanvas.flush_events()
+        self.tab_canvas.flush_events()
+
+        print("✅ 그래프 마무리 완료")
+
+    # ===== Save 버튼 핸들러 =====
+    def on_save_button_clicked(self):
+        """Data Extraction 버튼 클릭"""
+        if not hasattr(self, 'spectrum_data_dict1') or not self.spectrum_data_dict1:
+            QtWidgets.QMessageBox.warning(self, "경고", "먼저 파일을 Plot 하세요")
+            return
+
+        # CSV 저장 다이얼로그
+        save_path, _ = QtWidgets.QFileDialog.getSaveFileName(
+            self, "CSV 파일 저장", "", "CSV Files (*.csv)"
+        )
+
         if not save_path:
             return
+
         if not save_path.endswith(".csv"):
             save_path += ".csv"
 
-        with open(save_path, mode='w', newline='', encoding='utf-8-sig') as csv_file:
-            writer = csv.writer(csv_file)
+        try:
+            with open(save_path, mode='w', newline='', encoding='utf-8') as file:
+                writer = csv.writer(file)
 
-            # ✅ 헤더 정보 먼저 기록
-            writer.writerow(["Δf", delta_f1])
-            writer.writerow(["Window", window_type1])
-            writer.writerow(["Overlap", f"{overlap1}%"])
-            writer.writerow(["Sampling", sampling_rates1.get(file_names1[0], "N/A")])
-            writer.writerow(["Record Length", Duration1])
-            writer.writerow(["Rest Time", Rest_time1])
-            writer.writerow(["IEPE", IEPE1])
-            writer.writerow(["Time Resolution(dt)", dt1])
-            writer.writerow(["Starting Time", start_time1])
-            writer.writerow(["Repetition", repetition1])
-            writer.writerow(["Sensitivity", Sensitivity1])
-            writer.writerow(["b.Sensitivity", b_Sensitivity1])
-            writer.writerow(["View Type", str(view_type)])
+                # 헤더
+                file_names = list(self.spectrum_data_dict1.keys())
+                writer.writerow(["Frequency (Hz)", *file_names])
 
-            writer.writerow([])  # 빈 줄 추가
+                # 데이터
+                first_file = file_names[0]
+                frequencies = self.data_dict[first_file][0]
 
-            # ✅ 채널 정보 행
-            channel_row = [""]  # 첫 번째 빈 셀 (Frequency 칸)
-            for file_name in file_names1:
-                match = re.search(r'_(\d+)$', file_name)
-                channel = f"CH {match.group(1)}" if match else "CH ?"
-                channel_row.append(channel)
-            writer.writerow(channel_row)
+                for i, freq in enumerate(frequencies):
+                    row = [freq]
+                    for fname in file_names:
+                        spectrum = self.spectrum_data_dict1[fname]
+                        value = float(spectrum[i]) if i < len(spectrum) else ""
+                        row.append(value)
+                    writer.writerow(row)
 
-            # ✅ 열 제목
-            header = ["Frequency (Hz)"] + file_names1
-            writer.writerow(header)
+            QtWidgets.QMessageBox.information(self, "성공", f"저장 완료:\n{save_path}")
 
-            # ✅ 데이터 행
-            for i, freq in enumerate(frequencies1):
-                row = [freq]
-                for file_name in file_names1:
-                    spectrum = spectrum_data1.get(file_name)
-                    if spectrum is not None and i < len(spectrum):
-                        row.append(float(spectrum[i]))
-                    else:
-                        row.append("")
-            writer.writerow(row)
+        except Exception as e:
+            QtWidgets.QMessageBox.critical(self, "오류", f"저장 실패:\n{e}")
+
+    def resizeEvent(self, event):
+        """창 크기 변경 시"""
+        super().resizeEvent(event)
+
+        try:
+            # tight_layout 재적용
+            self.tab_waveform_figure.tight_layout(rect=[0, 0, 0.85, 1])
+            self.tab_figure.tight_layout(rect=[0, 0, 0.85, 1])
+
+            # 폰트 크기 조정
+            font_size = self.get_dynamic_font_size(10)
+
+            for ax in [self.tab_waveax, self.tab_ax]:
+                ax.title.set_fontsize(font_size + 1)
+                ax.xaxis.label.set_fontsize(font_size)
+                ax.yaxis.label.set_fontsize(font_size)
+                ax.tick_params(labelsize=font_size - 1)
+
+                legend = ax.get_legend()
+                if legend:
+                    legend.set_fontsize(max(6, font_size - 2))
+
+            # 캔버스 업데이트
+            self.tab_wavecanvas.draw_idle()
+            self.tab_canvas.draw_idle()
+
+        except:
+            pass
+
+    def close_dialog(self):
+        """다이얼로그 닫기"""
+        try:
+            # 이벤트 연결 해제
+            if hasattr(self, 'spect_cid_move'):
+                self.tab_canvas.mpl_disconnect(self.spect_cid_move)
+            if hasattr(self, 'spect_cid_click'):
+                self.tab_canvas.mpl_disconnect(self.spect_cid_click)
+            if hasattr(self, 'spect_cid_key'):
+                self.tab_canvas.mpl_disconnect(self.spect_cid_key)
+        except:
+            pass
+
+        # Figure 정리
+        try:
+            plt.close(self.tab_waveform_figure)
+            plt.close(self.tab_figure)
+        except:
+            pass
+
+        # 데이터 정리
+        if hasattr(self, 'data_dict'):
+            self.data_dict.clear()
+        if hasattr(self, 'spectrum_data_dict1'):
+            self.spectrum_data_dict1.clear()
+
+        self.deleteLater()
+        self.accept()
+
+    def closeEvent(self, event):
+        """X 버튼 클릭"""
+        self.close_dialog()
+        event.accept()
+
+    def keyPressEvent(self, event):
+        """ESC 키"""
+        if event.key() == QtCore.Qt.Key_Escape:
+            self.close_dialog()
+        else:
+            super().keyPressEvent(event)
 
 
-class Ui_MainWindow(object):
+class Ui_MainWindow(ResponsiveLayoutMixin):
 
     def update_waterfall_angle(self):
         """
@@ -1756,7 +996,10 @@ class Ui_MainWindow(object):
         self.data_center_allin.setSpacing(0)
 
         # ▶ Waveform 그래프
-        self.waveform_figure = Figure()
+        # ✅ 수정 코드
+        dpi = QtWidgets.QApplication.primaryScreen().logicalDotsPerInch()
+        self.waveform_figure = Figure(figsize=(10, 4), dpi=dpi)
+        self.waveform_figure.set_tight_layout({'rect': [0, 0, 0.88, 1]})  # 범례 공간 12%
         self.wavecanvas = FigureCanvas(self.waveform_figure)
         self.wavecanvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.waveax = self.waveform_figure.add_subplot(111)
@@ -1765,7 +1008,10 @@ class Ui_MainWindow(object):
         self.wavecanvas.setFocus()
 
         # ▶ Spectrum 그래프
-        self.figure = Figure()
+        # ✅ 수정 코드
+        dpi = QtWidgets.QApplication.primaryScreen().logicalDotsPerInch()
+        self.figure = Figure(figsize=(10, 4), dpi=dpi)
+        self.figure.set_tight_layout({'rect': [0, 0, 0.88, 1]})
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.ax = self.figure.add_subplot(111)
@@ -2158,20 +1404,21 @@ class Ui_MainWindow(object):
         self.trend_graph_layout = QtWidgets.QVBoxLayout()
 
         # trend 생성
-        self.trend_figure = Figure()
-
-        # FigureCanvas를 생성하여 trend 그래프 위젯에 추가
+        # ✅ 수정 코드
+        dpi = QtWidgets.QApplication.primaryScreen().logicalDotsPerInch()
+        self.trend_figure = Figure(figsize=(10, 4), dpi=dpi)
+        self.trend_figure.set_tight_layout({'rect': [0, 0, 0.88, 1]})
         self.trend_canvas = FigureCanvas(self.trend_figure)
-
-        # ✅ 크기 정책 설정: 가로/세로 모두 확장 가능
         self.trend_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.trend_ax = self.trend_figure.add_subplot(111)
+        # FigureCanvas를 생성하여 trend 그래프 위젯에 추가
+
         self.trend_canvas.setFocusPolicy(Qt.ClickFocus)
         self.trend_canvas.setFocus()
 
         self.trend_graph_layout.addWidget(self.trend_canvas)
 
         # trend 그래프를 그릴 Axes 생성
-        self.trend_ax = self.trend_figure.add_subplot(111)
         self.trend_ax.set_title("Overall RMS Trend", fontsize=7, fontname='Malgun Gothic')
 
         self.data_list_layout = QtWidgets.QVBoxLayout()
@@ -2365,18 +1612,20 @@ class Ui_MainWindow(object):
         self.peak_graph_layout = QtWidgets.QVBoxLayout()
 
         # peak 생성
-        self.peak_figure = Figure()
-
-        # FigureCanvas를 생성하여 peak 그래프 위젯에 추가
+        # ✅ 수정 코드
+        dpi = QtWidgets.QApplication.primaryScreen().logicalDotsPerInch()
+        self.peak_figure = Figure(figsize=(10, 4), dpi=dpi)
+        self.peak_figure.set_tight_layout({'rect': [0, 0, 0.88, 1]})
         self.peak_canvas = FigureCanvas(self.peak_figure)
+        self.peak_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.peak_ax = self.peak_figure.add_subplot(111)
+
         self.peak_graph_layout.addWidget(self.peak_canvas)
 
-        self.peak_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.peak_canvas.setFocusPolicy(Qt.ClickFocus)
         self.peak_canvas.setFocus()
 
         # peak 그래프를 그릴 Axes 생성
-        self.peak_ax = self.peak_figure.add_subplot(111)
         self.peak_ax.set_title("Band Peak Trend", fontsize=7, fontname='Malgun Gothic')
 
         self.tab5_layout.addLayout(self.peak_graph_layout, 1, 1, 1, 3, alignment=QtCore.Qt.AlignLeft)  # 그래프 위젯 추가
@@ -2622,17 +1871,19 @@ class Ui_MainWindow(object):
         self.waterfall_graph_layout = QtWidgets.QVBoxLayout()
 
         # Figure 생성
-        self.waterfall_figure = plt.Figure()
-
-        # FigureCanvas를 생성하여 Waterfall 그래프 위젯에 추가
+        # ✅ 수정 코드
+        dpi = QtWidgets.QApplication.primaryScreen().logicalDotsPerInch()
+        self.waterfall_figure = plt.Figure(figsize=(10, 4), dpi=dpi)
         self.waterfall_canvas = FigureCanvas(self.waterfall_figure)
         self.waterfall_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
+        self.waterfall_ax = self.waterfall_figure.add_subplot(111)
+
+        # FigureCanvas를 생성하여 Waterfall 그래프 위젯에 추가
         self.waterfall_graph_layout.addWidget(self.waterfall_canvas)
         # self.waterfall_toolbar = NavigationToolbar(self.waterfall_canvas, MainWindow)
         # self.waterfall_graph_layout.addWidget(self.waterfall_toolbar)
 
         # Waterfall 그래프를 그릴 Axes 생성
-        self.waterfall_ax = self.waterfall_figure.add_subplot(111)
         # self.waterfall_ax.set_title("Waterfall")
         self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=7, fontname='Malgun Gothic')
         self.tab2_layout.addLayout(self.waterfall_graph_layout, 1, 1, 1, 8,
@@ -3435,6 +2686,17 @@ class Ui_MainWindow(object):
 
             self.ax.grid(True)
             self.waveax.grid(True)
+
+            # ⭐ 범례 업데이트 추가
+            self.update_legend_position(self.ax, max_items=15)
+            self.update_legend_position(self.waveax, max_items=15)
+
+            # ⭐ tight_layout 재적용
+            try:
+                self.figure.tight_layout(rect=[0, 0, 0.88, 1])
+                self.waveform_figure.tight_layout(rect=[0, 0, 0.88, 1])
+            except:
+                pass
 
             # ⭐ Legend 샘플링 (30개 → 10개)
             for ax in [self.ax, self.waveax]:
@@ -4337,6 +3599,12 @@ class Ui_MainWindow(object):
         self.waterfall_ax.set_ylabel(zlabel, fontsize=7, fontname='Malgun Gothic')
         self.waterfall_ax.set_xlabel("Frequency (Hz)", fontsize=7)
 
+        # ⭐ 폰트 크기 동적 조정
+        font_size = self.get_dynamic_font_size(10)
+        self.waterfall_ax.xaxis.label.set_fontsize(font_size - 2)
+        self.waterfall_ax.yaxis.label.set_fontsize(font_size - 2)
+        self.waterfall_ax.tick_params(labelsize=font_size - 3)
+
         # 배경 설정
         self.waterfall_figure.patch.set_facecolor('white')
         self.waterfall_ax.set_facecolor('white')
@@ -4763,13 +4031,22 @@ class Ui_MainWindow(object):
         self.trend_ax.tick_params(axis='x', labelsize=7)
         self.trend_ax.tick_params(axis='y', labelsize=7)
 
+        # ⭐ 범례 업데이트 추가
+        self.update_legend_position(self.trend_ax, max_items=10)
+
+        # ⭐ tight_layout 재적용
+        try:
+            self.trend_figure.tight_layout(rect=[0, 0, 0.88, 1])
+        except:
+            pass
+
         # 범례
-        handles, legend_labels = self.trend_ax.get_legend_handles_labels()
-        unique = dict()
-        for h, l in zip(handles, legend_labels):
-            if l not in unique:
-                unique[l] = h
-        self.trend_ax.legend(unique.values(), unique.keys(), fontsize=7)
+        # handles, legend_labels = self.trend_ax.get_legend_handles_labels()
+        # unique = dict()
+        # for h, l in zip(handles, legend_labels):
+        #     if l not in unique:
+        #         unique[l] = h
+        # self.trend_ax.legend(unique.values(), unique.keys(), fontsize=7)
 
         # ===== 10. 캔버스 그리기 =====
         self.trend_canvas.draw_idle()
@@ -5674,10 +4951,22 @@ class Ui_MainWindow(object):
                 directory_path=self.directory_path  # ✅ 폴더 경로 같이 넘기기
             )
 
-            if dialog.exec_() == QtWidgets.QDialog.Accepted:
-                selected_files = dialog.get_selected_files()
-                # if selected_files:
-                #         self.save_selected_files(selected_files)
+            # ⭐ 모달 다이얼로그로 실행 (블로킹)
+            dialog.setWindowModality(QtCore.Qt.ApplicationModal)
+
+            # ⭐ 창 크기 및 위치 설정
+            dialog.resize(1600, 900)
+
+            # ⭐ exec_() 대신 show() 사용하면 논블로킹
+            # result = dialog.exec_()  # 블로킹 (창 닫을 때까지 대기)
+            dialog.show()  # 논블로킹 (창 띄우고 바로 반환)
+
+            # ⭐ 다이얼로그 참조 저장 (GC 방지)
+            self.detail_analysis_dialog = dialog
+            # if dialog.exec_() == QtWidgets.QDialog.Accepted:
+            #     selected_files = dialog.get_selected_files()
+            #     # if selected_files:
+            #     #         self.save_selected_files(selected_files)
         except Exception as e:
             print(f"❌ on_list_save_btn_clicked 오류: {e}")
             import traceback
@@ -5888,13 +5177,22 @@ class Ui_MainWindow(object):
         self.peak_ax.tick_params(axis='x', labelsize=7)
         self.peak_ax.tick_params(axis='y', labelsize=7)
 
+        # ⭐ 범례 업데이트 추가
+        self.update_legend_position(self.peak_ax, max_items=10)
+
+        # ⭐ tight_layout 재적용
+        try:
+            self.peak_figure.tight_layout(rect=[0, 0, 0.88, 1])
+        except:
+            pass
+
         # 범례
-        handles, legend_labels = self.peak_ax.get_legend_handles_labels()
-        unique = dict()
-        for h, l in zip(handles, legend_labels):
-            if l not in unique:
-                unique[l] = h
-        self.peak_ax.legend(unique.values(), unique.keys(), fontsize=7)
+        # handles, legend_labels = self.peak_ax.get_legend_handles_labels()
+        # unique = dict()
+        # for h, l in zip(handles, legend_labels):
+        #     if l not in unique:
+        #         unique[l] = h
+        # self.peak_ax.legend(unique.values(), unique.keys(), fontsize=7)
 
         # ===== 10. 캔버스 그리기 =====
         self.peak_canvas.draw_idle()
@@ -6299,18 +5597,56 @@ class Ui_MainWindow(object):
 if __name__ == "__main__":
     faulthandler.enable()
 
+    # ⭐⭐⭐ High DPI 지원 (QApplication 생성 전에 설정) ⭐⭐⭐
+    # Qt 5.6+
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
+    QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
+
+    # ⭐ Windows DPI 인식 설정
+    try:
+        from ctypes import windll
+
+        # 1 = Process DPI Aware (권장)
+        # 2 = Per-Monitor DPI Aware (고급, 멀티모니터 환경)
+        windll.shcore.SetProcessDpiAwareness(1)
+    except Exception as e:
+        print(f"⚠️ DPI 설정 실패 (무시 가능): {e}")
+
     app = QtWidgets.QApplication(sys.argv)
-    MainWindow = QtWidgets.QMainWindow()
-    font = PyQt5.QtGui.QFont("Malgun Gothic", 10)  # 폰트 설정
+
+    # ⭐ 폰트 DPI 스케일링
+    screen = app.primaryScreen()
+    dpi = screen.logicalDotsPerInch()
+    base_dpi = 96.0
+    scale_factor = dpi / base_dpi
+
+
+    # 폰트 크기 자동 조정
+    font_size = max(9, int(10 * scale_factor))  # 최소 9pt
+    font = PyQt5.QtGui.QFont("Malgun Gothic", font_size)  # 폰트 설정
     app.setFont(font)  # 전체 애플리케이션 폰트 설정
     app.setWindowIcon(QIcon("icn.ico"))  # 전체 앱 아이콘 설정
 
+    MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
     ui.setupUi(MainWindow)
     ui.retranslateUi(MainWindow)  # 보통 번역 함수도 호출
 
     MainWindow.setWindowTitle("CNAVE CNXMW Post Processor")
     MainWindow.setWindowIcon(QIcon("icn.ico"))
+
+    # ⭐ 창 크기를 화면 크기 기반으로 설정
+    screen_geometry = screen.availableGeometry()
+    window_width = int(screen_geometry.width() * 0.9)
+    window_height = int(screen_geometry.height() * 0.9)
+    MainWindow.resize(window_width, window_height)
+
+    # 창을 화면 중앙에 배치
+    MainWindow.move(
+        (screen_geometry.width() - window_width) // 2,
+        (screen_geometry.height() - window_height) // 2
+    )
+
     MainWindow.show()
 
     # ⭐ 프로그램 종료 시 성능 리포트 생성

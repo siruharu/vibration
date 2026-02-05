@@ -250,6 +250,15 @@ class SpectrumParallelProcessor:
             max_workers = max(mp.cpu_count() - 1, 1)
 
         self.max_workers = max_workers
+        self._executor = None  # 프로세스 풀 캐싱
+
+    def __enter__(self):
+        self._executor = ProcessPoolExecutor(max_workers=self.max_workers)
+        return self
+
+    def __exit__(self, *args):
+        if self._executor:
+            self._executor.shutdown(wait=True)
 
     def process_batch(
             self,
@@ -302,6 +311,8 @@ class SpectrumParallelProcessor:
 # 사용 예시
 # ========================================
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     print("✅ Level 5 Spectrum 최적화 모듈 로드 완료")
 
     processor = SpectrumParallelProcessor()

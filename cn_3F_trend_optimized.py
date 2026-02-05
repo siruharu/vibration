@@ -730,22 +730,100 @@ class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
         self.tab_canvas.mpl_connect("button_press_event", self.on_mouse_click_spect)
         self.tab_canvas.mpl_connect("key_press_event", self.on_key_press_spect)
 
-    # ===== Picking 기능 (생략 - 기존과 동일) =====
     def on_mouse_move_spect(self, event):
-        # ... (이전 코드 동일)
-        pass
+        if not self.mouse_tracking_enabled or not event.inaxes:
+            if self.hover_pos_spect[0] is not None:
+                self.hover_dot_spect.set_data([], [])
+                self.hover_pos_spect = [None, None]
+                self.tab_canvas.draw_idle()
+            return
+
+        closest_x, closest_y, min_dist = None, None, np.inf
+        for line in self.tab_ax.get_lines():
+            x_data, y_data = line.get_xdata(), line.get_ydata()
+            if len(x_data) == 0 or len(y_data) == 0:
+                continue
+            for x, y in zip(x_data, y_data):
+                dist = np.hypot(event.xdata - x, event.ydata - y)
+                if dist < min_dist:
+                    min_dist = dist
+                    closest_x, closest_y = x, y
+
+        if closest_x is not None:
+            self.hover_dot_spect.set_data([closest_x], [closest_y])
+            self.hover_pos_spect = [closest_x, closest_y]
+            self.tab_canvas.draw_idle()
 
     def on_mouse_click_spect(self, event):
-        # ... (이전 코드 동일)
-        pass
+        if not event.inaxes:
+            return
+        x, y = self.hover_dot_spect.get_data()
+        if event.button == 1 and x and y:
+            self.add_marker_spect(x[0], y[0])
+        elif event.button == 3:
+            for marker, label in self.markers_spect:
+                marker.remove()
+                label.remove()
+            self.markers_spect.clear()
+            self.tab_canvas.draw_idle()
 
     def on_key_press_spect(self, event):
-        # ... (이전 코드 동일)
-        pass
+        x, y = self.hover_dot_spect.get_data()
+        if not x or not y:
+            return
+        all_x_data, all_y_data = [], []
+        for line in self.tab_ax.get_lines():
+            x_data, y_data = line.get_xdata(), line.get_ydata()
+            if len(x_data) > 0:
+                all_x_data.extend(x_data)
+                all_y_data.extend(y_data)
+        current_index = None
+        min_dist = np.inf
+        for idx, (x_val, y_val) in enumerate(zip(all_x_data, all_y_data)):
+            dist = np.hypot(x[0] - x_val, y[0] - y_val)
+            if dist < min_dist:
+                min_dist = dist
+                current_index = idx
+        if current_index is None:
+            return
+        candidates = []
+        if event.key == 'left':
+            candidates = [(i, abs(all_x_data[i] - x[0])) for i in range(len(all_x_data)) if all_x_data[i] < x[0]]
+        elif event.key == 'right':
+            candidates = [(i, abs(all_x_data[i] - x[0])) for i in range(len(all_x_data)) if all_x_data[i] > x[0]]
+        elif event.key == 'enter':
+            self.add_marker_spect(all_x_data[current_index], all_y_data[current_index])
+            return
+        if candidates:
+            candidates.sort(key=lambda t: t[1])
+            current_index = candidates[0][0]
+        new_x = all_x_data[current_index]
+        new_y = all_y_data[current_index]
+        self.hover_pos_spect = [new_x, new_y]
+        self.hover_dot_spect.set_data([new_x], [new_y])
+        self.tab_canvas.draw_idle()
 
     def add_marker_spect(self, x, y):
-        # ... (이전 코드 동일)
-        pass
+        min_distance = float('inf')
+        closest_file, closest_x, closest_y = None, None, None
+        for file_name, (data_x, data_y) in self.data_dict.items():
+            x_array = np.array(data_x)
+            y_array = np.array(data_y)
+            idx = (np.abs(x_array - x)).argmin()
+            x_val, y_val = x_array[idx], y_array[idx]
+            dist = np.hypot(x_val - x, y_val - y)
+            if dist < min_distance:
+                min_distance = dist
+                closest_file, closest_x, closest_y = file_name, x_val, y_val
+        if closest_file is not None:
+            marker = self.tab_ax.plot(closest_x, closest_y, marker='o', color='red', markersize=7)[0]
+            label = self.tab_ax.text(
+                float(closest_x), float(closest_y) + 0.001,
+                f"file: {closest_file}\nX: {float(closest_x):.4f}, Y: {float(closest_y):.4f}",
+                fontsize=7, fontweight='bold', color='black', ha='center', va='bottom'
+            )
+            self.markers_spect.append((marker, label))
+            self.tab_canvas.draw_idle()
 
     def on_save_button_clicked(self):
         """CSV 저장"""
@@ -797,734 +875,6 @@ class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
             self.close_dialog()
         else:
             super().keyPressEvent(event)
-
-# """
-# 개선된 Detail Analysis - UX 피드백 반영
-# ✅ 우클릭 메뉴 제거 (Spectrum 피킹용)
-# ✅ 축 클릭으로 Range 다이얼로그 열기
-# ✅ Auto X/Y 별도 체크박스
-# ✅ Legend를 그래프 밖 여백으로 배치
-# ✅ Set Axis Range 다이얼로그 개선
-# """
-#
-# import itertools
-# import os
-# import csv
-# import numpy as np
-# from PyQt5 import QtWidgets, QtCore, QtGui
-# from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
-# import matplotlib.pyplot as plt
-# from responsive_layout_utils import ResponsiveLayoutMixin, create_responsive_button
-# from file_parser import FileParser
-# from fft_engine import FFTEngine
-#
-#
-# class AxisRangeDialog(QtWidgets.QDialog):
-#     """축 범위 설정 다이얼로그 (개선)"""
-#
-#     def __init__(self, axis_name, current_min, current_max, parent=None):
-#         super().__init__(parent)
-#         self.setWindowTitle(f"Set {axis_name} Axis Range")
-#         self.setModal(True)
-#         self.setMinimumWidth(300)
-#
-#         layout = QtWidgets.QVBoxLayout(self)
-#
-#         # Auto Range 체크박스
-#         self.auto_checkbox = QtWidgets.QCheckBox("Auto Range")
-#         self.auto_checkbox.setChecked(False)
-#         self.auto_checkbox.stateChanged.connect(self.toggle_inputs)
-#         layout.addWidget(self.auto_checkbox)
-#
-#         # Min/Max 입력
-#         form_layout = QtWidgets.QFormLayout()
-#
-#         self.min_input = QtWidgets.QLineEdit(f"{current_min:.2f}")
-#         self.min_input.setStyleSheet("""
-#             QLineEdit {
-#                 background-color: white;
-#                 color: #333333;
-#                 border: 1px solid #cccccc;
-#                 padding: 5px;
-#             }
-#         """)
-#         form_layout.addRow(f"{axis_name} min:", self.min_input)
-#
-#         self.max_input = QtWidgets.QLineEdit(f"{current_max:.2f}")
-#         self.max_input.setStyleSheet(self.min_input.styleSheet())
-#         form_layout.addRow(f"{axis_name} max:", self.max_input)
-#
-#         layout.addLayout(form_layout)
-#
-#         # 버튼
-#         buttons = QtWidgets.QDialogButtonBox(
-#             QtWidgets.QDialogButtonBox.Ok | QtWidgets.QDialogButtonBox.Cancel
-#         )
-#         buttons.accepted.connect(self.accept)
-#         buttons.rejected.connect(self.reject)
-#         layout.addWidget(buttons)
-#
-#     def toggle_inputs(self, state):
-#         """Auto 체크 시 입력 비활성화"""
-#         enabled = not self.auto_checkbox.isChecked()
-#         self.min_input.setEnabled(enabled)
-#         self.max_input.setEnabled(enabled)
-#
-#     def get_range(self):
-#         """범위 반환 (None이면 Auto)"""
-#         if self.auto_checkbox.isChecked():
-#             return None, None
-#
-#         try:
-#             min_val = float(self.min_input.text())
-#             max_val = float(self.max_input.text())
-#
-#             if min_val >= max_val:
-#                 QtWidgets.QMessageBox.warning(self, "경고", "min은 max보다 작아야 합니다")
-#                 return None, None
-#
-#             return min_val, max_val
-#         except ValueError:
-#             QtWidgets.QMessageBox.warning(self, "경고", "올바른 숫자를 입력하세요")
-#             return None, None
-#
-#
-# class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
-#     """Detail Analysis 다이얼로그 (개선된 UX)"""
-#
-#     def __init__(self, channel_files: dict, parent=None, headers=None, directory_path=None):
-#         super().__init__(parent)
-#
-#         # ===== 창 설정 =====
-#         self.setWindowFlags(
-#             QtCore.Qt.Window |
-#             QtCore.Qt.WindowCloseButtonHint |
-#             QtCore.Qt.WindowMinMaxButtonsHint
-#         )
-#         self.setWindowTitle("Detail Analysis - Select Files to Save")
-#
-#         from responsive_layout_utils import calculate_window_size
-#         width, height = calculate_window_size(0.85, 0.85, 1200, 800)
-#         self.resize(width, height)
-#         self.setMinimumSize(1200, 800)
-#
-#         # 라이트 모드 스타일시트
-#         self.setStyleSheet("""
-#             QDialog {
-#                 background-color: #f5f5f5;
-#                 color: #333333;
-#             }
-#             QLabel {
-#                 color: #333333;
-#             }
-#             QCheckBox {
-#                 color: #333333;
-#             }
-#         """)
-#
-#         # ===== 초기화 =====
-#         self.directory_path = directory_path
-#         self.channel_files = channel_files
-#         self.color_cycle = itertools.cycle(plt.cm.tab10.colors)
-#         self.markers_spect = []
-#         self.hover_pos_spect = [None, None]
-#         self.mouse_tracking_enabled = True
-#
-#         # ===== 메인 레이아웃 =====
-#         main_layout = QtWidgets.QHBoxLayout(self)
-#         main_layout.setContentsMargins(10, 10, 10, 10)
-#         main_layout.setSpacing(10)
-#
-#         self.splitter = QtWidgets.QSplitter(QtCore.Qt.Horizontal)
-#
-#         self.left_panel = self.create_left_panel()
-#         right_panel = self.create_right_panel()
-#
-#         self.splitter.addWidget(self.left_panel)
-#         self.splitter.addWidget(right_panel)
-#         self.splitter.setStretchFactor(0, 15)
-#         self.splitter.setStretchFactor(1, 85)
-#
-#         main_layout.addWidget(self.splitter)
-#
-#         self.populate_list_widget()
-#         self.adjust_left_panel_width()
-#
-#     def create_left_panel(self):
-#         """왼쪽 패널 생성"""
-#         panel = QtWidgets.QWidget()
-#         layout = QtWidgets.QVBoxLayout(panel)
-#         layout.setContentsMargins(0, 0, 0, 0)
-#
-#         self.plot_button = create_responsive_button("Plot", 100, 35, "primary")
-#         self.plot_button.clicked.connect(self.on_file_items_clicked)
-#         layout.addWidget(self.plot_button)
-#
-#         self.file_list_widget = QtWidgets.QListWidget()
-#         self.file_list_widget.setSelectionMode(QtWidgets.QAbstractItemView.ExtendedSelection)
-#         self.file_list_widget.setStyleSheet("""
-#             QListWidget {
-#                 background-color: white;
-#                 color: #333333;
-#                 font-size: 10pt;
-#                 border: 1px solid #cccccc;
-#                 font-family: 'Courier New', monospace;
-#             }
-#             QListWidget::item {
-#                 padding: 2px;
-#             }
-#             QListWidget::item:selected {
-#                 background-color: #0078d7;
-#                 color: white;
-#             }
-#             QListWidget::item:hover {
-#                 background-color: #e5f3ff;
-#             }
-#         """)
-#
-#         layout.addWidget(self.file_list_widget)
-#
-#         return panel
-#
-#     def create_right_panel(self):
-#         """오른쪽 패널 생성"""
-#         panel = QtWidgets.QWidget()
-#         layout = QtWidgets.QVBoxLayout(panel)
-#         layout.setContentsMargins(0, 0, 0, 0)
-#         layout.setSpacing(10)
-#
-#         waveform_widget = self.create_graph_widget("waveform")
-#         layout.addWidget(waveform_widget, stretch=1)
-#
-#         spectrum_widget = self.create_graph_widget("spectrum")
-#         layout.addWidget(spectrum_widget, stretch=1)
-#
-#         button_widget = self.create_button_panel()
-#         layout.addWidget(button_widget)
-#
-#         return panel
-#
-#     def create_graph_widget(self, graph_type):
-#         """그래프 위젯 생성"""
-#         widget = QtWidgets.QWidget()
-#         layout = QtWidgets.QVBoxLayout(widget)
-#         layout.setContentsMargins(0, 0, 0, 0)
-#
-#         dpi = QtWidgets.QApplication.primaryScreen().logicalDotsPerInch()
-#         figure = plt.Figure(figsize=(10, 3.5), dpi=dpi)
-#         ax = figure.add_subplot(111)
-#         canvas = FigureCanvas(figure)
-#         canvas.setMinimumHeight(250)
-#
-#         if graph_type == "waveform":
-#             ax.set_title("Waveform", fontsize=7)
-#             ax.set_xlabel("Time (s)", fontsize=7)
-#         else:
-#             ax.set_title("Vibration Spectrum", fontsize=7)
-#             ax.set_xlabel("Frequency (Hz)", fontsize=7)
-#
-#         ax.tick_params(axis='both', labelsize=7)
-#         ax.grid(True)
-#
-#         # ⭐ Legend를 그래프 밖 여백으로 배치
-#         self.setup_figure_with_legend(figure, ax, rect=[0, 0, 0.88, 1])
-#
-#         if graph_type == "waveform":
-#             self.tab_waveform_figure = figure
-#             self.tab_waveax = ax
-#             self.tab_wavecanvas = canvas
-#         else:
-#             self.tab_figure = figure
-#             self.tab_ax = ax
-#             self.tab_canvas = canvas
-#
-#         canvas.setFocusPolicy(QtCore.Qt.StrongFocus)
-#
-#         # ⭐ 축 클릭 이벤트 연결
-#         canvas.mpl_connect('button_press_event',
-#                           lambda event: self.on_axis_click(event, graph_type))
-#
-#         layout.addWidget(canvas)
-#
-#         # ⭐ 개선된 컨트롤 패널
-#         control = self.create_improved_control_panel(graph_type)
-#         layout.addWidget(control)
-#
-#         return widget
-#
-#     def create_improved_control_panel(self, graph_type):
-#         """⭐ 개선된 컨트롤 패널"""
-#         panel = QtWidgets.QWidget()
-#         layout = QtWidgets.QHBoxLayout(panel)
-#         layout.setContentsMargins(5, 5, 5, 5)
-#         layout.setSpacing(10)
-#
-#         # Auto X 체크박스
-#         auto_x = QtWidgets.QCheckBox("Auto X")
-#         auto_x.setChecked(True)
-#         auto_x.setStyleSheet("color: #333333; font-size: 10pt;")
-#         auto_x.stateChanged.connect(
-#             lambda: self.toggle_auto_scale(graph_type, 'x', auto_x.isChecked())
-#         )
-#
-#         # Auto Scale X 버튼
-#         auto_scale_x_btn = create_responsive_button("Auto Scale X", 100, 25, "default")
-#         auto_scale_x_btn.clicked.connect(lambda: self.auto_scale(graph_type, 'x'))
-#
-#         # Auto Y 체크박스
-#         auto_y = QtWidgets.QCheckBox("Auto Y")
-#         auto_y.setChecked(True)
-#         auto_y.setStyleSheet("color: #333333; font-size: 10pt;")
-#         auto_y.stateChanged.connect(
-#             lambda: self.toggle_auto_scale(graph_type, 'y', auto_y.isChecked())
-#         )
-#
-#         # Auto Scale Y 버튼
-#         auto_scale_y_btn = create_responsive_button("Auto Scale Y", 100, 25, "default")
-#         auto_scale_y_btn.clicked.connect(lambda: self.auto_scale(graph_type, 'y'))
-#
-#         # 레이아웃
-#         layout.addWidget(auto_x)
-#         layout.addWidget(auto_scale_x_btn)
-#         layout.addWidget(auto_y)
-#         layout.addWidget(auto_scale_y_btn)
-#         layout.addStretch()
-#
-#         # 속성 저장
-#         prefix = "waveform" if graph_type == "waveform" else "spectrum"
-#         setattr(self, f"tab_{prefix}_auto_x", auto_x)
-#         setattr(self, f"tab_{prefix}_auto_scale_x", auto_scale_x_btn)
-#         setattr(self, f"tab_{prefix}_auto_y", auto_y)
-#         setattr(self, f"tab_{prefix}_auto_scale_y", auto_scale_y_btn)
-#
-#         return panel
-#
-#     def on_axis_click(self, event, graph_type):
-#         """⭐ 축 클릭 시 Range 다이얼로그 열기"""
-#         if event.button != 1:  # 왼쪽 클릭만
-#             return
-#
-#         ax = self.tab_waveax if graph_type == "waveform" else self.tab_ax
-#
-#         # X축 클릭 확인
-#         if event.inaxes and event.inaxes.xaxis.contains(event)[0]:
-#             self.show_axis_range_dialog(graph_type, 'X')
-#
-#         # Y축 클릭 확인
-#         elif event.inaxes and event.inaxes.yaxis.contains(event)[0]:
-#             self.show_axis_range_dialog(graph_type, 'Y')
-#
-#     def show_axis_range_dialog(self, graph_type, axis_name):
-#         """축 범위 설정 다이얼로그 표시"""
-#         ax = self.tab_waveax if graph_type == "waveform" else self.tab_ax
-#
-#         # 현재 범위 가져오기
-#         if axis_name == 'X':
-#             current_min, current_max = ax.get_xlim()
-#         else:
-#             current_min, current_max = ax.get_ylim()
-#
-#         # 다이얼로그 열기
-#         dialog = AxisRangeDialog(axis_name, current_min, current_max, self)
-#
-#         if dialog.exec_() == QtWidgets.QDialog.Accepted:
-#             min_val, max_val = dialog.get_range()
-#
-#             prefix = "waveform" if graph_type == "waveform" else "spectrum"
-#             canvas = self.tab_wavecanvas if graph_type == "waveform" else self.tab_canvas
-#
-#             if min_val is None or max_val is None:
-#                 # Auto Range
-#                 if axis_name == 'X':
-#                     auto_checkbox = getattr(self, f"tab_{prefix}_auto_x")
-#                     auto_checkbox.setChecked(True)
-#                     ax.autoscale(enable=True, axis='x')
-#                 else:
-#                     auto_checkbox = getattr(self, f"tab_{prefix}_auto_y")
-#                     auto_checkbox.setChecked(True)
-#                     ax.autoscale(enable=True, axis='y')
-#             else:
-#                 # 수동 범위
-#                 if axis_name == 'X':
-#                     auto_checkbox = getattr(self, f"tab_{prefix}_auto_x")
-#                     auto_checkbox.setChecked(False)
-#                     ax.set_xlim(min_val, max_val)
-#                 else:
-#                     auto_checkbox = getattr(self, f"tab_{prefix}_auto_y")
-#                     auto_checkbox.setChecked(False)
-#                     ax.set_ylim(min_val, max_val)
-#
-#             canvas.draw_idle()
-#
-#     def toggle_auto_scale(self, graph_type, axis, is_auto):
-#         """Auto 체크박스 토글"""
-#         if is_auto:
-#             self.auto_scale(graph_type, axis)
-#
-#     def auto_scale(self, graph_type, axis):
-#         """축 Auto Scale"""
-#         ax = self.tab_waveax if graph_type == "waveform" else self.tab_ax
-#         canvas = self.tab_wavecanvas if graph_type == "waveform" else self.tab_canvas
-#
-#         prefix = "waveform" if graph_type == "waveform" else "spectrum"
-#
-#         if axis == 'x':
-#             auto_checkbox = getattr(self, f"tab_{prefix}_auto_x")
-#             auto_checkbox.setChecked(True)
-#             ax.autoscale(enable=True, axis='x')
-#         else:
-#             auto_checkbox = getattr(self, f"tab_{prefix}_auto_y")
-#             auto_checkbox.setChecked(True)
-#             ax.autoscale(enable=True, axis='y')
-#
-#         canvas.draw_idle()
-#
-#     def create_button_panel(self):
-#         """하단 버튼 패널"""
-#         panel = QtWidgets.QWidget()
-#         layout = QtWidgets.QHBoxLayout(panel)
-#         layout.setContentsMargins(0, 0, 0, 0)
-#
-#         self.tab_save_button = create_responsive_button("Data Extraction", 120, 35)
-#         self.tab_save_button.clicked.connect(self.on_save_button_clicked)
-#
-#         self.tab_close_button = create_responsive_button("Close", 120, 35)
-#         self.tab_close_button.clicked.connect(self.close_dialog)
-#
-#         layout.addWidget(self.tab_save_button)
-#         layout.addWidget(self.tab_close_button)
-#         layout.addStretch()
-#
-#         return panel
-#
-#     # ===== 파일 리스트 관리 =====
-#     def populate_list_widget(self):
-#         """채널별로 파일 리스트 표시"""
-#         self.file_list_widget.clear()
-#
-#         for ch_num in range(1, 7):
-#             ch_key = f"Ch{ch_num}"
-#             files = self.channel_files.get(ch_key, [])
-#
-#             header_item = QtWidgets.QListWidgetItem(f"Ch{ch_num}")
-#             header_item.setFlags(QtCore.Qt.ItemIsEnabled)
-#             header_item.setBackground(QtCore.Qt.lightGray)
-#             header_item.setForeground(QtCore.Qt.black)
-#             font = header_item.font()
-#             font.setBold(True)
-#             header_item.setFont(font)
-#             self.file_list_widget.addItem(header_item)
-#
-#             if files:
-#                 for file in sorted(files):
-#                     file_item = QtWidgets.QListWidgetItem(f"  {file}")
-#                     file_item.setData(QtCore.Qt.UserRole, file)
-#                     self.file_list_widget.addItem(file_item)
-#             else:
-#                 empty_item = QtWidgets.QListWidgetItem("  -")
-#                 empty_item.setFlags(QtCore.Qt.ItemIsEnabled)
-#                 empty_item.setForeground(QtCore.Qt.gray)
-#                 self.file_list_widget.addItem(empty_item)
-#
-#     def adjust_left_panel_width(self):
-#         """왼쪽 패널 너비 자동 조정"""
-#         max_width = 0
-#         font_metrics = QtGui.QFontMetrics(self.file_list_widget.font())
-#
-#         for i in range(self.file_list_widget.count()):
-#             item = self.file_list_widget.item(i)
-#             text_width = font_metrics.boundingRect(item.text()).width()
-#             max_width = max(max_width, text_width)
-#
-#         scrollbar_width = self.file_list_widget.verticalScrollBar().sizeHint().width()
-#         optimal_width = max_width + scrollbar_width + 42
-#         final_width = max(250, min(optimal_width, 600))
-#
-#         self.left_panel.setMinimumWidth(final_width)
-#         self.left_panel.setMaximumWidth(final_width)
-#
-#         total_width = self.width()
-#         right_width = total_width - final_width - 20
-#         self.splitter.setSizes([final_width, right_width])
-#
-#     def get_selected_files(self):
-#         """선택된 파일 추출"""
-#         selected_files = []
-#         for item in self.file_list_widget.selectedItems():
-#             file_name = item.data(QtCore.Qt.UserRole)
-#             if file_name:
-#                 selected_files.append(file_name)
-#         return selected_files
-#
-#     def on_file_items_clicked(self):
-#         """Plot 버튼"""
-#         selected_files = self.get_selected_files()
-#
-#         if not selected_files:
-#             QtWidgets.QMessageBox.warning(self, "경고", "파일을 선택하세요")
-#             return
-#
-#         self.tab_waveax.clear()
-#         self.tab_ax.clear()
-#         self.color_cycle = itertools.cycle(plt.cm.tab10.colors)
-#         self.data_dict = {}
-#         self.spectrum_data_dict1 = {}
-#
-#         for file_name in selected_files:
-#             self.load_and_plot_file(file_name)
-#
-#         self.finalize_plot()
-#
-#     def load_and_plot_file(self, file_name):
-#         """파일 로드 (FileParser + FFTEngine)"""
-#         if not self.directory_path:
-#             return
-#
-#         file_path = os.path.join(self.directory_path, file_name)
-#         if not os.path.exists(file_path):
-#             return
-#
-#         try:
-#             base_name = os.path.splitext(file_name)[0]
-#
-#             parser = FileParser(file_path)
-#             if not parser.is_valid():
-#                 return
-#
-#             data = parser.get_data()
-#             sampling_rate = parser.get_sampling_rate()
-#
-#             if sampling_rate is None:
-#                 return
-#
-#             # JSON fallback
-#             json_folder = os.path.join(self.directory_path, "trend_data", "full")
-#             json_path = os.path.join(json_folder, f"{base_name}_full.json")
-#
-#             import json
-#             json_metadata = {}
-#             if os.path.exists(json_path):
-#                 try:
-#                     with open(json_path, 'r') as f:
-#                         json_metadata = json.load(f)
-#                 except:
-#                     pass
-#
-#             delta_f = json_metadata.get("delta_f", 1.0)
-#             overlap = json_metadata.get("overlap", 50.0)
-#             window_str = json_metadata.get("window", "hanning").lower()
-#             view_type_str = json_metadata.get("view_type", "ACC").upper()
-#
-#             view_type_map = {"ACC": 1, "VEL": 2, "DIS": 3}
-#             view_type = view_type_map.get(view_type_str, 1)
-#
-#             engine = FFTEngine(
-#                 sampling_rate=sampling_rate,
-#                 delta_f=delta_f,
-#                 overlap=overlap,
-#                 window_type=window_str
-#             )
-#
-#             result = engine.compute(data=data, view_type=view_type, type_flag=2)
-#             frequency = result['frequency']
-#             spectrum = result['spectrum']
-#
-#             time = np.arange(len(data)) / sampling_rate
-#             color = next(self.color_cycle)
-#
-#             self.tab_waveax.plot(time, data, label=base_name, color=color, linewidth=0.5, alpha=0.8)
-#             self.tab_ax.plot(frequency, spectrum, label=base_name, color=color, linewidth=0.5, alpha=0.8)
-#
-#             self.data_dict[base_name] = (frequency, spectrum)
-#             self.spectrum_data_dict1[base_name] = spectrum
-#
-#             view_labels = {
-#                 1: "Vibration Acceleration\n(m/s², RMS)",
-#                 2: "Vibration Velocity\n(mm/s, RMS)",
-#                 3: "Vibration Displacement\n(μm, RMS)"
-#             }
-#             ylabel = view_labels.get(view_type, "Vibration (mm/s, RMS)")
-#             self.tab_ax.set_ylabel(ylabel, fontsize=7)
-#             self.tab_waveax.set_ylabel(ylabel, fontsize=7)
-#
-#         except Exception as e:
-#             print(f"❌ {file_name} 로드 실패: {e}")
-#
-#     def finalize_plot(self):
-#         """그래프 마무리"""
-#         self.tab_waveax.set_title("Waveform", fontsize=7)
-#         self.tab_waveax.set_xlabel("Time (s)", fontsize=7)
-#         self.tab_waveax.legend(fontsize=7, loc='upper left', bbox_to_anchor=(1, 1))
-#         self.tab_waveax.grid(True)
-#         self.tab_waveax.tick_params(axis='both', labelsize=7)
-#
-#         self.tab_ax.set_title("Vibration Spectrum", fontsize=7)
-#         self.tab_ax.set_xlabel("Frequency (Hz)", fontsize=7)
-#         self.tab_ax.legend(fontsize=7, loc='upper left', bbox_to_anchor=(1, 1))
-#         self.tab_ax.grid(True)
-#         self.tab_ax.tick_params(axis='both', labelsize=7)
-#
-#         try:
-#             self.tab_waveform_figure.tight_layout(rect=[0, 0, 0.88, 1])
-#             self.tab_figure.tight_layout(rect=[0, 0, 0.88, 1])
-#         except:
-#             pass
-#
-#         self.tab_wavecanvas.draw_idle()
-#         self.tab_canvas.draw_idle()
-#
-#         # Picking 기능 (Spectrum만)
-#         self.hover_dot_spect = self.tab_ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
-#         self.tab_canvas.mpl_connect("motion_notify_event", self.on_mouse_move_spect)
-#         self.tab_canvas.mpl_connect("button_press_event", self.on_mouse_click_spect)
-#         self.tab_canvas.mpl_connect("key_press_event", self.on_key_press_spect)
-#
-#     # ===== Picking 기능 (이전과 동일) =====
-#     def on_mouse_move_spect(self, event):
-#         if not self.mouse_tracking_enabled or not event.inaxes:
-#             if self.hover_pos_spect[0] is not None:
-#                 self.hover_dot_spect.set_data([], [])
-#                 self.hover_pos_spect = [None, None]
-#                 self.tab_canvas.draw_idle()
-#             return
-#
-#         closest_x, closest_y, min_dist = None, None, np.inf
-#         for line in self.tab_ax.get_lines():
-#             x_data, y_data = line.get_xdata(), line.get_ydata()
-#             if len(x_data) == 0 or len(y_data) == 0:
-#                 continue
-#             for x, y in zip(x_data, y_data):
-#                 dist = np.hypot(event.xdata - x, event.ydata - y)
-#                 if dist < min_dist:
-#                     min_dist = dist
-#                     closest_x, closest_y = x, y
-#
-#         if closest_x is not None:
-#             self.hover_dot_spect.set_data([closest_x], [closest_y])
-#             self.hover_pos_spect = [closest_x, closest_y]
-#             self.tab_canvas.draw_idle()
-#
-#     def on_mouse_click_spect(self, event):
-#         if not event.inaxes:
-#             return
-#         x, y = self.hover_dot_spect.get_data()
-#         if event.button == 1 and x and y:
-#             self.add_marker_spect(x[0], y[0])
-#         elif event.button == 3:  # 우클릭: 마커 삭제
-#             for marker, label in self.markers_spect:
-#                 marker.remove()
-#                 label.remove()
-#             self.markers_spect.clear()
-#             self.tab_canvas.draw_idle()
-#
-#     def on_key_press_spect(self, event):
-#         x, y = self.hover_dot_spect.get_data()
-#         if not x or not y:
-#             return
-#         all_x_data, all_y_data = [], []
-#         for line in self.tab_ax.get_lines():
-#             x_data, y_data = line.get_xdata(), line.get_ydata()
-#             if len(x_data) > 0:
-#                 all_x_data.extend(x_data)
-#                 all_y_data.extend(y_data)
-#         current_index = None
-#         min_dist = np.inf
-#         for idx, (x_val, y_val) in enumerate(zip(all_x_data, all_y_data)):
-#             dist = np.hypot(x[0] - x_val, y[0] - y_val)
-#             if dist < min_dist:
-#                 min_dist = dist
-#                 current_index = idx
-#         if current_index is None:
-#             return
-#         candidates = []
-#         if event.key == 'left':
-#             candidates = [(i, abs(all_x_data[i] - x[0])) for i in range(len(all_x_data)) if all_x_data[i] < x[0]]
-#         elif event.key == 'right':
-#             candidates = [(i, abs(all_x_data[i] - x[0])) for i in range(len(all_x_data)) if all_x_data[i] > x[0]]
-#         elif event.key == 'enter':
-#             self.add_marker_spect(all_x_data[current_index], all_y_data[current_index])
-#             return
-#         if candidates:
-#             candidates.sort(key=lambda t: t[1])
-#             current_index = candidates[0][0]
-#         new_x = all_x_data[current_index]
-#         new_y = all_y_data[current_index]
-#         self.hover_pos_spect = [new_x, new_y]
-#         self.hover_dot_spect.set_data([new_x], [new_y])
-#         self.tab_canvas.draw_idle()
-#
-#     def add_marker_spect(self, x, y):
-#         min_distance = float('inf')
-#         closest_file, closest_x, closest_y = None, None, None
-#         for file_name, (data_x, data_y) in self.data_dict.items():
-#             x_array = np.array(data_x)
-#             y_array = np.array(data_y)
-#             idx = (np.abs(x_array - x)).argmin()
-#             x_val, y_val = x_array[idx], y_array[idx]
-#             dist = np.hypot(x_val - x, y_val - y)
-#             if dist < min_distance:
-#                 min_distance = dist
-#                 closest_file, closest_x, closest_y = file_name, x_val, y_val
-#         if closest_file is not None:
-#             marker = self.tab_ax.plot(closest_x, closest_y, marker='o', color='red', markersize=7)[0]
-#             label = self.tab_ax.text(
-#                 float(closest_x), float(closest_y) + 0.001,
-#                 f"file: {closest_file}\nX: {float(closest_x):.4f}, Y: {float(closest_y):.4f}",
-#                 fontsize=7, fontweight='bold', color='black', ha='center', va='bottom'
-#             )
-#             self.markers_spect.append((marker, label))
-#             self.tab_canvas.draw_idle()
-#
-#     def on_save_button_clicked(self):
-#         """CSV 저장"""
-#         if not hasattr(self, 'spectrum_data_dict1') or not self.spectrum_data_dict1:
-#             QtWidgets.QMessageBox.warning(self, "경고", "먼저 파일을 Plot 하세요")
-#             return
-#         save_path, _ = QtWidgets.QFileDialog.getSaveFileName(self, "CSV 파일 저장", "", "CSV Files (*.csv)")
-#         if not save_path:
-#             return
-#         if not save_path.endswith(".csv"):
-#             save_path += ".csv"
-#         try:
-#             with open(save_path, mode='w', newline='', encoding='utf-8') as file:
-#                 writer = csv.writer(file)
-#                 file_names = list(self.spectrum_data_dict1.keys())
-#                 writer.writerow(["Frequency (Hz)", *file_names])
-#                 first_file = file_names[0]
-#                 frequencies = self.data_dict[first_file][0]
-#                 for i, freq in enumerate(frequencies):
-#                     row = [freq]
-#                     for fname in file_names:
-#                         spectrum = self.spectrum_data_dict1[fname]
-#                         value = float(spectrum[i]) if i < len(spectrum) else ""
-#                         row.append(value)
-#                     writer.writerow(row)
-#             QtWidgets.QMessageBox.information(self, "성공", f"저장 완료:\n{save_path}")
-#         except Exception as e:
-#             QtWidgets.QMessageBox.critical(self, "오류", f"저장 실패:\n{e}")
-#
-#     def close_dialog(self):
-#         try:
-#             plt.close(self.tab_waveform_figure)
-#             plt.close(self.tab_figure)
-#         except:
-#             pass
-#         if hasattr(self, 'data_dict'):
-#             self.data_dict.clear()
-#         if hasattr(self, 'spectrum_data_dict1'):
-#             self.spectrum_data_dict1.clear()
-#         self.deleteLater()
-#         self.accept()
-#
-#     def closeEvent(self, event):
-#         self.close_dialog()
-#         event.accept()
-#
-#     def keyPressEvent(self, event):
-#         if event.key() == QtCore.Qt.Key_Escape:
-#             self.close_dialog()
-#         else:
-#             super().keyPressEvent(event)
 
 
 class Ui_MainWindow(ResponsiveLayoutMixin):
@@ -1626,7 +976,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         self.top_control_layout.setStretch(0, 0)  # Select & Load
         self.top_control_layout.setStretch(1, 1)  # Directory (확장됨)
         self.top_control_layout.setStretch(2, 0)  # Choose 버튼
-        #Time/spectrumtab
+        # Time/spectrumtab
         self.tab_3 = QtWidgets.QWidget()
         self.tabWidget.addTab(self.tab_3, "")
         self.tab_3.setObjectName("tab_3")
@@ -1992,7 +1342,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         self.wave_scale_layout.addLayout(self.wave_y_layout2)
         self.wave_scale_layout.addStretch(2)
 
-        #spectrum
+        # spectrum
         self.spectrum_scale_layout = QtWidgets.QVBoxLayout()
         self.spectrum_scale_layout.setContentsMargins(0, 5, 0, 10)
         self.spectrum_scale_layout.addStretch(2)
@@ -2114,7 +1464,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         # self.tab3_layout.setRowStretch(1, 1)  # 그래프 splitter가 포함된 줄
         # ▶ tab3_layout에 splitter 추가 (GridLayout 기준 위치는 조절 가능)
 
-        #trendtab
+        # trendtab
         self.tab_4 = QtWidgets.QWidget()
         self.tabWidget.addTab(self.tab_4, "")
         self.tab_4.setObjectName("tab_4")
@@ -2341,7 +1691,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         self.trend_section_layout.addLayout(self.data_list_layout, 1)  # 오른쪽: 그래프
         self.tab4_layout.addLayout(self.trend_section_layout, 1, 1, 1, 8, alignment=QtCore.Qt.AlignLeft)
 
-        #banpeaktab
+        # banpeaktab
         self.tab_5 = QtWidgets.QWidget()
         self.tabWidget.addTab(self.tab_5, "")
         self.tab_5.setObjectName("tab_5")
@@ -2526,7 +1876,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
 
         self.tab5_layout.addLayout(self.peak_graph_layout, 1, 1, 1, 3, alignment=QtCore.Qt.AlignLeft)  # 그래프 위젯 추가
 
-        #Waterfalltab
+        # Waterfalltab
 
         # ⭐ Waterfall 캐시 변수 추가
         self.waterfall_cache = {
@@ -2535,7 +1885,6 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             'spectra': [],  # [(file_name, f, P, timestamp), ...]
             'params': {}  # delta_f, overlap, window_type 저장
         }
-
 
         self.tab_2 = QtWidgets.QWidget()
         self.tabWidget.addTab(self.tab_2, "")
@@ -4174,7 +3523,8 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
                     and y_list[matched_index] == closest_y
             ):
                 marker = \
-                self.ax.plot(np.round(closest_x, 4), np.round(closest_y, 4), marker='o', color='red', markersize=7)[0]
+                    self.ax.plot(np.round(closest_x, 4), np.round(closest_y, 4), marker='o', color='red', markersize=7)[
+                        0]
 
             label = self.ax.text(
                 float(closest_x), float(closest_y) + 0.001,
@@ -4704,7 +4054,6 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         except ValueError:
             print("")
 
-
     def set_z_axis(self):
         """Z축 조정 - 재계산 없이 View만 변경"""
         try:
@@ -5149,7 +4498,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         perf_logger.end_timer("전체 Trend 분석", start_total)
         perf_logger.log_info("✅ plot_trend 완료")
 
-    def load_trend_data_and_plot(self):  #잠시대기
+    def load_trend_data_and_plot(self):  # 잠시대기
         selected_items = self.Querry_list3.selectedItems()
         if not selected_items:
             print("❌ 선택된 항목이 없습니다.")
@@ -5202,7 +4551,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
                 file_timestamp = self.extract_timestamp_from_filename(file_name)
                 x_labels.append(file_timestamp.strftime("%Y-%m-%d""\n""%H:%M:%S"))  # "날짜_시간" 포맷으로 저장
             except Exception as e:
-                #print(f"⚠ {file_name} - 시간 추출 실패: {e}")
+                # print(f"⚠ {file_name} - 시간 추출 실패: {e}")
                 x_labels.append(file_name)
 
             if not os.path.exists(json_path):
@@ -5904,7 +5253,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             self.trend_annotations_load.append(annotation)
 
             # marked_points 리스트에 추가 (파일명, x, y, 라벨 정보 저장)
-            #self.marked_points.append((file_name, x_val, y_val, label))
+            # self.marked_points.append((file_name, x_val, y_val, label))
 
             self.trend_canvas.draw()
 
@@ -5955,6 +5304,7 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             import traceback
             traceback.print_exc()
             QMessageBox.critical(None, "오류", f"Detail Analysis 실행 중 오류 발생:\n{e}")
+
     def add_marker_filename_to_list(self, filename):
         # 예: filename = "data_example_3.txt"
 
@@ -6455,7 +5805,6 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         self.hover_dot_peak.set_data([new_x], [new_y])
         self.peak_canvas.draw()
 
-
     def add_marker_peak(self, x, y):
         """
         Band Peak Trend 그래프에 마커 추가 (기존 로직 복원)
@@ -6584,8 +5933,15 @@ cn_3F_trend_optimized.py의 if __name__ == "__main__": 부분 완전 교체
 """
 
 if __name__ == "__main__":
+    # ✅ PyInstaller 멀티프로세싱 지원
+    import multiprocessing
+
+    multiprocessing.freeze_support()
+
     import faulthandler
+
     faulthandler.enable()
+
 
     # ===== 스플래시 스크린 클래스 (임포트 불필요) =====
     class ModernSplashScreen(QtWidgets.QWidget):
@@ -6771,6 +6127,7 @@ if __name__ == "__main__":
                 self.status_label.setText(message)
             QtWidgets.QApplication.processEvents()
 
+
     # ===== 프로그램 정보 =====
     VERSION = "v1.0.0"
     APP_NAME = "CNAVE CNXMW Post Processor"
@@ -6782,6 +6139,7 @@ if __name__ == "__main__":
     # Windows DPI 설정
     try:
         from ctypes import windll
+
         windll.shcore.SetProcessDpiAwareness(1)
     except:
         pass
@@ -6835,10 +6193,12 @@ if __name__ == "__main__":
     splash.set_progress(100, "Ready!")
     QtWidgets.QApplication.processEvents()
 
+
     # ===== 4. 스플래시 닫고 메인 윈도우 표시 =====
     def show_main_window():
         splash.close()
         MainWindow.show()
+
 
     QtCore.QTimer.singleShot(500, show_main_window)
 
@@ -6846,6 +6206,7 @@ if __name__ == "__main__":
     try:
         exit_code = app.exec_()
         import gc
+
         gc.collect()
 
         perf_logger.log_info("프로그램 종료")
@@ -6860,6 +6221,7 @@ if __name__ == "__main__":
 
     except Exception as e:
         import gc
+
         gc.collect()
         print(f"\n❌ 프로그램 오류: {e}")
 

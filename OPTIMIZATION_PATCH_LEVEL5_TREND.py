@@ -416,6 +416,8 @@ class PeakParallelProcessor:
 # 사용 예시
 # ========================================
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     print("✅ Level 5 Trend 최적화 모듈 로드 완료")
 
     processor = TrendParallelProcessor()

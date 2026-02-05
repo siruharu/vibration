@@ -173,6 +173,8 @@ class LineCountLimiter:
 # 사용 예시
 # ========================================
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     print("✅ Level 4 렌더링 최적화 모듈 로드 완료")
     saver = ParallelTrendSaver(max_workers=6)
     print(f"   - 병렬 저장 워커: {saver.max_workers}")

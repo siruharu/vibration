@@ -404,6 +404,8 @@ class UltraFastRenderer:
 # 사용 예시
 # ========================================
 if __name__ == "__main__":
+    import multiprocessing
+    multiprocessing.freeze_support()
     print("✅ Level 3 최적화 모듈 로드 완료")
     processor = UltraParallelProcessor()
     print(f"   - 최적 워커 수: {processor.max_workers}")

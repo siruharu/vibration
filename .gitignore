@@ -324,4 +324,14 @@ dist
 build
 test_data
 
+# Performance logs (generated during runtime)
+performance_log.txt
+performance_log.json
+
+# Backup files
+*.backup
+*.backup_*
+*.bak
+*.old
+
 # End of https://www.toptal.com/developers/gitignore/api/windows,macos,pycharm+all,python

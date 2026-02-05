@@ -88,7 +88,7 @@ from scipy.signal.windows import hann, flattop
 import itertools
 from PyQt5.QtWidgets import QFileDialog
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar
-from PyQt5.QtCore import Qt
+from PyQt5.QtCore import Qt, QTimer
 import csv
 from matplotlib.backends.backend_qt5agg import (
     FigureCanvasQTAgg as FigureCanvas,
@@ -3771,10 +3771,27 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
                 writer.writerow(row)
 
     def set_x_axis(self):
+        # ✅ Auto Scale이 활성화되어 있으면 입력값 무시
+        if self.auto_spectrum_x.isChecked():
+            return
+        # ⭐ 안전한 마커 제거
         for marker, label in self.markers:
-            marker.remove()
-            label.remove()
+            try:
+                marker.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    marker.set_data([], [])
+                except:
+                    pass
+            try:
+                label.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    label.set_visible(False)
+                except:
+                    pass
         self.markers.clear()
+
         try:
 
             ax = self.canvas.figure.axes[0]  # matplotlib 축 객체
@@ -3814,9 +3831,25 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             print("")
 
     def set_y_axis(self):
+        # ✅ Auto Scale이 활성화되어 있으면 입력값 무시
+        if self.auto_spectrum_y.isChecked():
+            return
+        # ⭐ 안전한 마커 제거
         for marker, label in self.markers:
-            marker.remove()
-            label.remove()
+            try:
+                marker.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    marker.set_data([], [])
+                except:
+                    pass
+            try:
+                label.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    label.set_visible(False)
+                except:
+                    pass
         self.markers.clear()
         try:
             y_min = float(self.spectrum_y_min_input.text())
@@ -3830,9 +3863,22 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             print("")
 
     def auto_scale_x(self):
+        # ⭐ 안전한 마커 제거
         for marker, label in self.markers:
-            marker.remove()
-            label.remove()
+            try:
+                marker.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    marker.set_data([], [])
+                except:
+                    pass
+            try:
+                label.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    label.set_visible(False)
+                except:
+                    pass
         self.markers.clear()
         ax = self.canvas.figure.axes[0]  # matplotlib 축 객체
         self.auto_spectrum_x.setChecked(True)
@@ -3841,9 +3887,22 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         self.canvas.draw()
 
     def auto_scale_y(self):
+        # ⭐ 안전한 마커 제거
         for marker, label in self.markers:
-            marker.remove()
-            label.remove()
+            try:
+                marker.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    marker.set_data([], [])
+                except:
+                    pass
+            try:
+                label.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    label.set_visible(False)
+                except:
+                    pass
         self.markers.clear()
         ax = self.canvas.figure.axes[0]  # matplotlib 축 객체
         self.auto_spectrum_y.setChecked(True)
@@ -3851,6 +3910,9 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
         self.canvas.draw()
 
     def set_wave_x_axis(self):
+        # ✅ Auto Scale이 활성화되어 있으면 입력값 무시
+        if self.auto_wave_x.isChecked():
+            return
         try:
             # 현재 그래프의 첫 번째 축 객체와 그 안의 라인 객체들
             ax = self.wavecanvas.figure.axes[0]  # matplotlib 축 객체
@@ -3884,6 +3946,9 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             print("")
 
     def set_wave_y_axis(self):
+        # ✅ Auto Scale이 활성화되어 있으면 입력값 무시
+        if self.auto_wave_y.isChecked():
+            return
         try:
             y_min = float(self.y_min_wave_input.text())
             y_max = float(self.y_max_wave_input.text())
@@ -3947,10 +4012,32 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             self.canvas.draw()
 
     def clear_marker(self):
+        """마커와 주석을 안전하게 제거"""
         for marker, label in self.markers:
-            marker.remove()
-            label.remove()
+            try:
+                marker.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                # remove()가 지원되지 않으면 set_data로 초기화
+                try:
+                    marker.set_data([], [])
+                except:
+                    pass
+
+            try:
+                label.remove()
+            except (NotImplementedError, ValueError, AttributeError):
+                try:
+                    label.set_visible(False)
+                except:
+                    pass
+
         self.markers.clear()
+
+        # 캔버스 강제 업데이트
+        try:
+            self.canvas.draw_idle()
+        except:
+            pass
 
     def on_mouse_click(self, event):
         """마우스를 클릭했을 때 가장 가까운 점을 고정된 마커로 표시"""
@@ -6490,70 +6577,277 @@ class Ui_MainWindow(ResponsiveLayoutMixin):
             import traceback
             traceback.print_exc()
 
+
+"""
+cn_3F_trend_optimized.py의 if __name__ == "__main__": 부분 완전 교체
+(임포트 문제 없음, 모든 코드 포함)
+"""
+
 if __name__ == "__main__":
+    import faulthandler
     faulthandler.enable()
 
-    # ⭐⭐⭐ High DPI 지원 (QApplication 생성 전에 설정) ⭐⭐⭐
-    # Qt 5.6+
+    # ===== 스플래시 스크린 클래스 (임포트 불필요) =====
+    class ModernSplashScreen(QtWidgets.QWidget):
+        """CNAVE 스플래시 스크린"""
+
+        def __init__(self, version="v1.0.0", parent=None):
+            super().__init__(parent)
+            self.version = version
+
+            # 창 설정
+            self.setWindowFlags(
+                QtCore.Qt.WindowStaysOnTopHint |
+                QtCore.Qt.FramelessWindowHint |
+                QtCore.Qt.Tool
+            )
+            self.setAttribute(QtCore.Qt.WA_TranslucentBackground)
+            self.setFixedSize(600, 450)
+
+            # 화면 중앙 배치
+            screen = QtWidgets.QApplication.primaryScreen().geometry()
+            x = (screen.width() - self.width()) // 2
+            y = (screen.height() - self.height()) // 2
+            self.move(x, y)
+
+            # UI 구성
+            self.setup_ui()
+
+            # 자동 닫기 타이머 (3초)
+            self.close_timer = QtCore.QTimer()
+            self.close_timer.setSingleShot(True)
+            self.close_timer.timeout.connect(self.close)
+            self.close_timer.start(10000)
+
+        def setup_ui(self):
+            """UI 구성"""
+            layout = QtWidgets.QVBoxLayout(self)
+            layout.setContentsMargins(0, 0, 0, 0)
+
+            # 메인 프레임
+            frame = QtWidgets.QFrame()
+            frame.setStyleSheet("""
+                QFrame {
+                    background-color: white;
+                    border: 2px solid #0078d7;
+                    border-radius: 15px;
+                }
+            """)
+
+            frame_layout = QtWidgets.QVBoxLayout(frame)
+            frame_layout.setContentsMargins(40, 40, 40, 40)
+            frame_layout.setSpacing(20)
+
+            # 로고
+            logo_label = QtWidgets.QLabel()
+            try:
+                pixmap = QtGui.QPixmap("icn.ico")
+                if not pixmap.isNull():
+                    pixmap = pixmap.scaled(128, 128, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+                    logo_label.setPixmap(pixmap)
+                else:
+                    raise Exception("로고 로드 실패")
+            except:
+                logo_label.setText("🚀")
+                logo_label.setStyleSheet("font-size: 64px;")
+            logo_label.setAlignment(QtCore.Qt.AlignCenter)
+            frame_layout.addWidget(logo_label)
+
+            # 회사명
+            company_label = QtWidgets.QLabel("CNAVE")
+            company_label.setStyleSheet("""
+                QLabel {
+                    font-size: 32px;
+                    font-weight: bold;
+                    color: #003366;
+                    font-family: 'Arial';
+                }
+            """)
+            company_label.setAlignment(QtCore.Qt.AlignCenter)
+            frame_layout.addWidget(company_label)
+
+            # 프로그램명
+            app_label = QtWidgets.QLabel("CNXMW Post Processor")
+            app_label.setStyleSheet("""
+                QLabel {
+                    font-size: 18px;
+                    color: #666666;
+                    font-family: 'Arial';
+                }
+            """)
+            app_label.setAlignment(QtCore.Qt.AlignCenter)
+            frame_layout.addWidget(app_label)
+
+            # 버전
+            version_label = QtWidgets.QLabel(self.version)
+            version_label.setStyleSheet("""
+                QLabel {
+                    font-size: 14px;
+                    color: #999999;
+                    font-family: 'Arial';
+                }
+            """)
+            version_label.setAlignment(QtCore.Qt.AlignCenter)
+            frame_layout.addWidget(version_label)
+
+            # 프로그레스 바
+            self.progress_bar = QtWidgets.QProgressBar()
+            self.progress_bar.setStyleSheet("""
+                QProgressBar {
+                    border: 2px solid #cccccc;
+                    border-radius: 8px;
+                    text-align: center;
+                    background-color: #f0f0f0;
+                    height: 25px;
+                }
+                QProgressBar::chunk {
+                    background-color: #0078d7;
+                    border-radius: 6px;
+                }
+            """)
+            self.progress_bar.setRange(0, 100)
+            self.progress_bar.setValue(0)
+            frame_layout.addWidget(self.progress_bar)
+
+            # 로딩 메시지
+            self.status_label = QtWidgets.QLabel("Starting...")
+            self.status_label.setStyleSheet("""
+                QLabel {
+                    font-size: 12px;
+                    color: #666666;
+                    font-family: 'Arial';
+                }
+            """)
+            self.status_label.setAlignment(QtCore.Qt.AlignCenter)
+            frame_layout.addWidget(self.status_label)
+
+            frame_layout.addStretch()
+
+            # 저작권
+            copyright_label = QtWidgets.QLabel("© 2024-2026 CNAVE. All rights reserved.")
+            copyright_label.setStyleSheet("""
+                QLabel {
+                    font-size: 10px;
+                    color: #999999;
+                    font-family: 'Arial';
+                }
+            """)
+            copyright_label.setAlignment(QtCore.Qt.AlignCenter)
+            frame_layout.addWidget(copyright_label)
+
+            layout.addWidget(frame)
+
+            # 애니메이션 시작
+            self.start_progress_animation()
+
+        def start_progress_animation(self):
+            """프로그레스 바 애니메이션"""
+            self.progress_value = 0
+            self.progress_timer = QtCore.QTimer()
+            self.progress_timer.timeout.connect(self.update_progress)
+            self.progress_timer.start(30)
+
+        def update_progress(self):
+            """진행률 업데이트"""
+            self.progress_value += 1
+            self.progress_bar.setValue(self.progress_value)
+
+            if self.progress_value < 30:
+                self.status_label.setText("Initializing...")
+            elif self.progress_value < 60:
+                self.status_label.setText("Loading modules...")
+            elif self.progress_value < 90:
+                self.status_label.setText("Setting up UI...")
+            else:
+                self.status_label.setText("Almost ready...")
+
+            if self.progress_value >= 100:
+                self.progress_timer.stop()
+
+        def set_progress(self, value, message=None):
+            """진행률 설정"""
+            self.progress_bar.setValue(value)
+            if message:
+                self.status_label.setText(message)
+            QtWidgets.QApplication.processEvents()
+
+    # ===== 프로그램 정보 =====
+    VERSION = "v1.0.0"
+    APP_NAME = "CNAVE CNXMW Post Processor"
+
+    # ⭐ High DPI 지원
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_EnableHighDpiScaling, True)
     QtWidgets.QApplication.setAttribute(QtCore.Qt.AA_UseHighDpiPixmaps, True)
 
-    # ⭐ Windows DPI 인식 설정
+    # Windows DPI 설정
     try:
         from ctypes import windll
-
-        # 1 = Process DPI Aware (권장)
-        # 2 = Per-Monitor DPI Aware (고급, 멀티모니터 환경)
         windll.shcore.SetProcessDpiAwareness(1)
-    except Exception as e:
-        print(f"⚠️ DPI 설정 실패 (무시 가능): {e}")
+    except:
+        pass
 
     app = QtWidgets.QApplication(sys.argv)
 
-    # ⭐ 폰트 DPI 스케일링
+    # ===== 1. 스플래시 스크린 표시 =====
+    splash = ModernSplashScreen(version=VERSION)
+    splash.show()
+    splash.set_progress(10, "Loading libraries...")
+    QtWidgets.QApplication.processEvents()
+
+    # ===== 2. 폰트 설정 =====
     screen = app.primaryScreen()
     dpi = screen.logicalDotsPerInch()
-    base_dpi = 96.0
-    scale_factor = dpi / base_dpi
+    scale_factor = dpi / 96.0
+    font_size = max(9, int(10 * scale_factor))
+    font = QtGui.QFont("Malgun Gothic", font_size)
+    app.setFont(font)
+    app.setWindowIcon(QtGui.QIcon("icn.ico"))
 
+    splash.set_progress(30, "Initializing UI...")
+    QtWidgets.QApplication.processEvents()
 
-    # 폰트 크기 자동 조정
-    font_size = max(9, int(10 * scale_factor))  # 최소 9pt
-    font = PyQt5.QtGui.QFont("Malgun Gothic", font_size)  # 폰트 설정
-    app.setFont(font)  # 전체 애플리케이션 폰트 설정
-    app.setWindowIcon(QIcon("icn.ico"))  # 전체 앱 아이콘 설정
-
+    # ===== 3. 메인 윈도우 생성 =====
     MainWindow = QtWidgets.QMainWindow()
     ui = Ui_MainWindow()
+
+    splash.set_progress(60, "Setting up components...")
+    QtWidgets.QApplication.processEvents()
+
     ui.setupUi(MainWindow)
-    ui.retranslateUi(MainWindow)  # 보통 번역 함수도 호출
+    ui.retranslateUi(MainWindow)
 
-    MainWindow.setWindowTitle("CNAVE CNXMW Post Processor")
-    MainWindow.setWindowIcon(QIcon("icn.ico"))
+    MainWindow.setWindowTitle(APP_NAME)
+    MainWindow.setWindowIcon(QtGui.QIcon("icn.ico"))
 
-    # ⭐ 창 크기를 화면 크기 기반으로 설정
+    splash.set_progress(80, "Finalizing...")
+    QtWidgets.QApplication.processEvents()
+
+    # 창 크기 설정
     screen_geometry = screen.availableGeometry()
     window_width = int(screen_geometry.width() * 0.9)
     window_height = int(screen_geometry.height() * 0.9)
     MainWindow.resize(window_width, window_height)
-
-    # 창을 화면 중앙에 배치
     MainWindow.move(
         (screen_geometry.width() - window_width) // 2,
         (screen_geometry.height() - window_height) // 2
     )
 
-    MainWindow.show()
+    splash.set_progress(100, "Ready!")
+    QtWidgets.QApplication.processEvents()
 
-    # ⭐ 프로그램 종료 시 성능 리포트 생성
+    # ===== 4. 스플래시 닫고 메인 윈도우 표시 =====
+    def show_main_window():
+        splash.close()
+        MainWindow.show()
+
+    QtCore.QTimer.singleShot(500, show_main_window)
+
+    # ===== 5. 프로그램 실행 =====
     try:
         exit_code = app.exec_()
-
         import gc
-
         gc.collect()
 
-        # 최종 리포트 생성
         perf_logger.log_info("프로그램 종료")
         try:
             perf_logger.generate_summary()
@@ -6566,11 +6860,9 @@ if __name__ == "__main__":
 
     except Exception as e:
         import gc
-
         gc.collect()
         print(f"\n❌ 프로그램 오류: {e}")
 
-        # 에러가 있어도 리포트는 저장
         try:
             perf_logger.generate_summary()
             perf_logger.save_json_report()
@@ -6579,4 +6871,3 @@ if __name__ == "__main__":
 
         sys.exit(1)
 
-                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        

@@ -11,9 +11,15 @@ from typing import List, Optional
 
 sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
 
-from vibration.core.services.peak_service import PeakService
+from vibration.core.services.peak_service import PeakService, ViewType
+from vibration.core.services.file_service import FileService
 from vibration.core.domain.models import TrendResult
 from vibration.presentation.views.tabs.peak_tab import PeakTabView
+from vibration.presentation.views.dialogs.progress_dialog import ProgressDialog
+from vibration.presentation.views.dialogs.list_save_dialog import ListSaveDialog
+from vibration.infrastructure.event_bus import get_event_bus
+from typing import cast
+from PyQt5.QtCore import Qt
 
 logger = logging.getLogger(__name__)
 
@@ -28,15 +34,23 @@ class PeakPresenter:
     Args:
         view: Peak tab view instance.
         peak_service: Peak computation service instance.
+        file_service: File operations service instance.
     """
     
-    def __init__(self, view: PeakTabView, peak_service: PeakService):
+    def __init__(self, view: PeakTabView, peak_service: PeakService, file_service: FileService):
         self.view = view
         self.peak_service = peak_service
+        self.file_service = file_service
         
         self._file_paths: List[str] = []
+        self._directory_path: str = ""
         self._current_view_type: str = 'ACC'
         self._last_result: Optional[TrendResult] = None
+        self._progress_dialog: Optional[ProgressDialog] = None
+        
+        self._event_bus = get_event_bus()
+        self._event_bus.files_loaded.connect(self._on_files_loaded)
+        self._event_bus.directory_selected.connect(self._on_directory_selected)
         
         self._connect_signals()
         logger.debug("PeakPresenter initialized")
@@ -44,17 +58,21 @@ class PeakPresenter:
     def _connect_signals(self):
         self.view.compute_requested.connect(self._on_compute_requested)
         self.view.view_type_changed.connect(self._on_view_type_changed)
-        self.view.frequency_band_changed.connect(self._on_frequency_band_changed)
         self.view.save_requested.connect(self._on_save_requested)
+        self.view.list_save_requested.connect(self._on_list_save_requested)
     
     def load_files(self, file_paths: List[str]) -> None:
         self._file_paths = list(file_paths)
         logger.info(f"Loaded {len(file_paths)} files for peak analysis")
     
     def _on_compute_requested(self) -> None:
-        if not self._file_paths:
-            logger.warning("No files loaded, cannot compute peak trend")
+        selected_filenames = self.view.get_selected_files()
+        if not selected_filenames or not self._directory_path:
+            logger.warning("No files selected or directory not set")
             return
+        
+        from pathlib import Path
+        file_paths = [str(Path(self._directory_path) / filename) for filename in selected_filenames]
         
         params = self.view.get_parameters()
         view_type_int = params.get('view_type', 1)
@@ -73,14 +91,22 @@ class PeakPresenter:
         
         self.view.clear_plot()
         
+        self._progress_dialog = ProgressDialog(len(file_paths), self.view)
+        self._progress_dialog.show()
+        
+        def update_progress(current: int, total: int):
+            if self._progress_dialog:
+                self._progress_dialog.update_progress(current)
+        
         try:
             result = self.peak_service.compute_peak_trend(
-                file_paths=self._file_paths,
+                file_paths=file_paths,
                 delta_f=delta_f,
                 overlap=overlap,
                 window_type=window_type,
-                view_type=view_type_str,
-                frequency_band=frequency_band
+                view_type=cast(ViewType, view_type_str),
+                frequency_band=frequency_band,
+                progress_callback=update_progress
             )
             
             self._last_result = result
@@ -90,24 +116,31 @@ class PeakPresenter:
             
         except Exception as e:
             logger.error(f"Error computing peak trend: {e}")
+        finally:
+            if self._progress_dialog:
+                self._progress_dialog.close()
+                self._progress_dialog = None
     
     def _update_view_with_result(self, result: TrendResult) -> None:
         if not result.channel_data:
             logger.warning("No channel data in result")
             return
         
-        x_labels = [ts.strftime('%Y-%m-%d\n%H:%M:%S') for ts in result.timestamps]
-        
-        band_str = ""
-        if result.frequency_band:
-            band_str = f" ({result.frequency_band[0]:.0f}-{result.frequency_band[1]:.0f} Hz)"
-        title = f"{result.view_type} Band Peak Trend{band_str}"
-        
         self.view.plot_peak_trend(
             channel_data=result.channel_data,
-            x_labels=x_labels,
-            title=title
+            clear=True
         )
+        
+        all_x = []
+        all_y = []
+        all_files = []
+        for ch in sorted(result.channel_data.keys()):
+            data = result.channel_data[ch]
+            all_x.extend(data['x'])
+            all_y.extend(data['y'])
+            all_files.extend(data.get('labels', []))
+        
+        self.view.set_peak_data(all_x, all_y, all_files)
     
     def _on_view_type_changed(self, view_type_int: int) -> None:
         view_type_str = VIEW_TYPE_INT_TO_STR.get(view_type_int, 'ACC')
@@ -123,11 +156,7 @@ class PeakPresenter:
         if self._file_paths:
             self._on_compute_requested()
     
-    def _on_frequency_band_changed(self, min_freq: float, max_freq: float) -> None:
-        logger.debug(f"Frequency band changed to {min_freq}-{max_freq} Hz")
-        
-        if self._file_paths:
-            self._on_compute_requested()
+
     
     def _on_save_requested(self) -> None:
         if not self._last_result:
@@ -146,6 +175,34 @@ class PeakPresenter:
     
     def get_file_count(self) -> int:
         return len(self._file_paths)
+    
+    def _on_files_loaded(self, files: List[str]) -> None:
+        logger.info(f"Received {len(files)} files from Data Query")
+        self.view.set_files(files)
+    
+    def _on_directory_selected(self, directory: str) -> None:
+        self._directory_path = directory
+        self.view.set_directory_path(directory)
+        logger.info(f"Directory updated: {directory}")
+    
+    def _on_list_save_requested(self, channel_files: dict, directory_path: str) -> None:
+        try:
+            dialog = ListSaveDialog(
+                channel_files=channel_files,
+                parent=self.view,
+                directory_path=directory_path
+            )
+            
+            dialog.setWindowModality(Qt.ApplicationModal)
+            dialog.resize(1600, 900)
+            dialog.show()
+            
+            logger.info(f"Opened Detail Analysis for {sum(len(v) for v in channel_files.values())} peak files")
+            
+        except Exception as e:
+            logger.error(f"Error opening Detail Analysis: {e}")
+            import traceback
+            traceback.print_exc()
 
 
 if __name__ == "__main__":
@@ -170,8 +227,9 @@ if __name__ == "__main__":
     mock_view.save_requested = MagicMock()
     
     mock_service = MagicMock(spec=PeakService)
+    mock_file_service = MagicMock(spec=FileService)
     
-    presenter = PeakPresenter(view=mock_view, peak_service=mock_service)
+    presenter = PeakPresenter(view=mock_view, peak_service=mock_service, file_service=mock_file_service)
     
     test_files = ['/path/to/file1.txt', '/path/to/file2.txt']
     presenter.load_files(test_files)

@@ -387,10 +387,22 @@ class TestResultProperties:
 
 
 class TestNoQtDependency:
-    """Verify tests don't import Qt."""
+    """Verify FFTService doesn't import Qt."""
     
-    def test_no_pyqt5_import(self):
-        """Verify PyQt5 is not imported by the test module."""
-        assert 'PyQt5' not in sys.modules, "PyQt5 should not be imported in unit tests"
-        assert 'PyQt5.QtWidgets' not in sys.modules
-        assert 'PyQt5.QtCore' not in sys.modules
+    def test_fft_service_no_qt_import(self):
+        """Verify FFTService can be imported without loading Qt (subprocess check)."""
+        import subprocess
+        result = subprocess.run(
+            [sys.executable, '-c', '''
+import sys
+from vibration.core.services.fft_service import FFTService
+qt_modules = [m for m in sys.modules if 'PyQt5' in m]
+if qt_modules:
+    print(f"Qt modules found: {qt_modules}")
+    sys.exit(1)
+sys.exit(0)
+'''],
+            capture_output=True,
+            text=True
+        )
+        assert result.returncode == 0, f"FFTService imported Qt: {result.stdout}{result.stderr}"

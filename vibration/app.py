@@ -76,10 +76,7 @@ class ApplicationFactory:
         self._presenters['data_query'] = DataQueryPresenter(view=data_query_tab)
         
         waterfall_tab = main_window.get_tab(MainWindow.TAB_WATERFALL)
-        self._presenters['waterfall'] = WaterfallPresenter(
-            view=waterfall_tab,
-            fft_service=self._services['fft']
-        )
+        self._presenters['waterfall'] = WaterfallPresenter(view=waterfall_tab)
         
         spectrum_tab = main_window.get_tab(MainWindow.TAB_SPECTRUM)
         self._presenters['spectrum'] = SpectrumPresenter(

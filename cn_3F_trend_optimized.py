@@ -96,6 +96,9 @@ from matplotlib.backends.backend_qt5agg import (
 from PyQt5.QtGui import QIcon
 from matplotlib import rcParams
 
+# ===== Modular Dialog Components =====
+from vibration.presentation.views.dialogs import ProgressDialog, AxisRangeDialog
+
 rcParams.update({'font.size': 7, 'font.family': DEFAULT_FONT})
 
 # 로거 초기화 (한 번만)

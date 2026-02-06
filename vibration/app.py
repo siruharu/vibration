@@ -6,24 +6,22 @@ No service locator pattern - all dependencies explicitly passed.
 """
 import sys
 import logging
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from PyQt5.QtWidgets import QApplication
+from PyQt5.QtCore import QTimer
 
+from vibration.core.services import FFTService, TrendService, PeakService, FileService
 from vibration.presentation.views import MainWindow
+from vibration.presentation.views.splash_screen import ModernSplashScreen
 from vibration.presentation.presenters import (
     DataQueryPresenter,
     WaterfallPresenter,
     SpectrumPresenter,
     TrendPresenter,
-    PeakPresenter
+    PeakPresenter,
 )
-from vibration.core.services import (
-    FFTService,
-    TrendService,
-    PeakService,
-    FileService
-)
+from vibration.infrastructure import get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -114,20 +112,30 @@ class ApplicationFactory:
 
 
 def main():
-    """Application entry point."""
-    logging.basicConfig(
-        level=logging.INFO,
-        format='%(asctime)s - %(name)s - %(levelname)s - %(message)s'
-    )
+    """Main entry point for the application."""
+    import sys
     
-    app = QApplication(sys.argv)
+    app = QApplication.instance()
+    if app is None:
+        app = QApplication(sys.argv)
+    
+    splash = ModernSplashScreen(version="v2.0.0")
+    splash.show()
+    splash.set_progress(10, "Loading libraries...")
     
     factory = ApplicationFactory()
+    
+    splash.set_progress(30, "Initializing services...")
     main_window = factory.create_application()
     
-    main_window.show()
+    splash.set_progress(80, "Setting up UI...")
     
-    logger.info("Application started")
+    def show_main_window():
+        splash.close()
+        main_window.show()
+    
+    splash.set_progress(100, "Ready!")
+    QTimer.singleShot(500, show_main_window)
     
     sys.exit(app.exec_())
 

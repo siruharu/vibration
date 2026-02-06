@@ -1,5 +1,5 @@
 """Domain models and entities."""
 
-from .models import FFTResult, SignalData, TrendResult
+from .models import FFTResult, SignalData, TrendResult, FileMetadata
 
-__all__ = ['FFTResult', 'SignalData', 'TrendResult']
+__all__ = ['FFTResult', 'SignalData', 'TrendResult', 'FileMetadata']

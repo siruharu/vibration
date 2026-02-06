@@ -212,3 +212,56 @@ class TrendResult:
         """Get count of successfully processed files."""
         # RMS value of 0 typically indicates failure
         return int(np.sum(self.rms_values > 0))
+
+
+@dataclass
+class FileMetadata:
+    """
+    Metadata for a loaded vibration data file.
+    
+    Contains file system information and parsed metadata from file header.
+    
+    Attributes:
+        filename: Name of the file (without path).
+        filepath: Full absolute path to the file.
+        size: File size in bytes.
+        date_modified: Last modification timestamp.
+        num_channels: Number of data channels in file.
+        sampling_rate: Sampling rate in Hz.
+        sensitivity: Sensor sensitivity (optional, mV/g).
+        b_sensitivity: B-weighting sensitivity (optional).
+        duration: Recording duration in seconds.
+        channel: Channel identifier/name.
+        metadata: Additional raw metadata from file.
+    """
+    filename: str
+    filepath: str
+    size: int
+    date_modified: str
+    num_channels: int = 1
+    sampling_rate: float = 0.0
+    sensitivity: Optional[float] = None
+    b_sensitivity: Optional[float] = None
+    duration: Optional[float] = None
+    channel: Optional[str] = None
+    metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate and normalize fields after initialization."""
+        if self.metadata is None:
+            self.metadata = {}
+    
+    @property
+    def size_kb(self) -> float:
+        """Get file size in kilobytes."""
+        return self.size / 1024.0
+    
+    @property
+    def size_mb(self) -> float:
+        """Get file size in megabytes."""
+        return self.size / (1024.0 * 1024.0)
+    
+    @property
+    def has_sensitivity(self) -> bool:
+        """Check if sensitivity is defined."""
+        return self.sensitivity is not None and self.sensitivity > 0

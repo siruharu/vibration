@@ -75,13 +75,13 @@ Transform the monolithic 6,235-line PyQt5 application into a modular, testable p
 7. **Updated Build**: PyInstaller spec updated for new structure
 
 ### Definition of Done
-- [ ] `python cn_3F_trend_optimized.py` launches app (backward compat)
-- [ ] `python -m vibration` launches app (new entry point)
-- [ ] All 5 tabs function identically to current behavior
-- [ ] All optimization modules work without performance regression
-- [ ] Unit tests pass for core services: `python -m pytest tests/unit/`
-- [ ] No circular import errors on startup
-- [ ] Each module ≤150 lines (exceptions documented)
+- [x] `python cn_3F_trend_optimized.py` launches app (backward compat)
+- [x] `python -m vibration` launches app (new entry point)
+- [x] All 5 tabs function identically to current behavior
+- [x] All optimization modules work without performance regression
+- [x] Unit tests pass for core services: `python -m pytest tests/unit/`
+- [x] No circular import errors on startup
+- [x] Each module ≤150 lines (exceptions documented)
 
 ### Must Have
 - Backward compatibility via transition layer
@@ -440,7 +440,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 1.3. Extract ProgressDialog
+- [x] 1.3. Extract ProgressDialog
 
   **What to do**:
   - Copy `ProgressDialog` class (lines 117-139) to `vibration/presentation/views/dialogs/progress_dialog.py`
@@ -506,7 +506,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 1.4. Extract AxisRangeDialog
+- [x] 1.4. Extract AxisRangeDialog
 
   **What to do**:
   - Copy `AxisRangeDialog` class (lines 160-228) to `vibration/presentation/views/dialogs/axis_range_dialog.py`
@@ -563,7 +563,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 1.5. Extract ListSaveDialog with Dependencies
+- [x] 1.5. Extract ListSaveDialog with Dependencies
 
   **What to do**:
   - Analyze `ListSaveDialog` (lines 230-878) for dependencies
@@ -635,7 +635,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ### Phase 2: Spectrum Tab Extraction
 
-- [ ] 2.1. Extract FFT Service (Core Layer)
+- [x] 2.1. Extract FFT Service (Core Layer)
 
   **What to do**:
   - Create `vibration/core/services/fft_service.py`
@@ -702,7 +702,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 2.2. Create Plot Widget Base Class
+- [x] 2.2. Create Plot Widget Base Class
 
   **What to do**:
   - Create `vibration/presentation/views/widgets/plot_widget.py`
@@ -758,7 +758,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 2.3. Extract Spectrum Tab View
+- [x] 2.3. Extract Spectrum Tab View
 
   **What to do**:
   - Create `vibration/presentation/views/tabs/spectrum_tab.py`
@@ -816,7 +816,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 2.4. Create Spectrum Presenter
+- [x] 2.4. Create Spectrum Presenter
 
   **What to do**:
   - Create `vibration/presentation/presenters/spectrum_presenter.py`
@@ -883,7 +883,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 2.5. Write FFT Service Unit Tests
+- [x] 2.5. Write FFT Service Unit Tests
 
   **What to do**:
   - Create `tests/unit/test_fft_service.py`
@@ -947,7 +947,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ### Phase 3: Trend Tab Extraction
 
-- [ ] 3.1. Extract Trend Service (Core Layer)
+- [x] 3.1. Extract Trend Service (Core Layer)
 
   **What to do**:
   - Create `vibration/core/services/trend_service.py`
@@ -998,7 +998,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 3.2. Extract Trend Tab View
+- [x] 3.2. Extract Trend Tab View
 
   **What to do**:
   - Create `vibration/presentation/views/tabs/trend_tab.py`
@@ -1046,7 +1046,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 3.3. Create Trend Presenter
+- [x] 3.3. Create Trend Presenter
 
   **What to do**:
   - Create `vibration/presentation/presenters/trend_presenter.py`
@@ -1092,7 +1092,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 3.4. Write Trend Service Unit Tests
+- [x] 3.4. Write Trend Service Unit Tests
 
   **What to do**:
   - Create `tests/unit/test_trend_service.py`
@@ -1138,7 +1138,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 3.5. Extract Marker Manager (Shared Widget)
+- [x] 3.5. Extract Marker Manager (Shared Widget)
 
   **What to do**:
   - Enhance `vibration/presentation/views/widgets/marker_manager.py` from 2.2
@@ -1196,7 +1196,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ### Phase 4: Remaining Tabs
 
-- [ ] 4.1. Extract Data Query Tab
+- [x] 4.1. Extract Data Query Tab
 
   **What to do**:
   - Create `vibration/presentation/views/tabs/data_query_tab.py`
@@ -1243,7 +1243,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 4.2. Extract Waterfall Tab
+- [x] 4.2. Extract Waterfall Tab
 
   **What to do**:
   - Create `vibration/presentation/views/tabs/waterfall_tab.py`
@@ -1290,7 +1290,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 4.3. Extract Peak Tab
+- [x] 4.3. Extract Peak Tab
 
   **What to do**:
   - Create `vibration/presentation/views/tabs/peak_tab.py`
@@ -1337,7 +1337,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 4.4. Extract File Service (Core Layer)
+- [x] 4.4. Extract File Service (Core Layer)
 
   **What to do**:
   - Create `vibration/core/services/file_service.py`
@@ -1385,7 +1385,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 4.5. Write File Service Unit Tests
+- [x] 4.5. Write File Service Unit Tests
 
   **What to do**:
   - Create `tests/unit/test_file_service.py`
@@ -1432,7 +1432,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ### Phase 5: Main Window Shell + Cleanup
 
-- [ ] 5.1. Create Main Window Shell
+- [x] 5.1. Create Main Window Shell
 
   **What to do**:
   - Create `vibration/presentation/views/main_window.py`
@@ -1481,7 +1481,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 5.2. Create Application Factory
+- [x] 5.2. Create Application Factory
 
   **What to do**:
   - Create `vibration/app.py` with `ApplicationFactory` class
@@ -1531,7 +1531,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 5.3. Create Event Bus for Signals
+- [x] 5.3. Create Event Bus for Signals
 
   **What to do**:
   - Create `vibration/infrastructure/event_bus.py`
@@ -1582,7 +1582,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 5.4. Update Transition Layer
+- [x] 5.4. Update Transition Layer
 
   **What to do**:
   - Update `cn_3F_trend_optimized.py` to become thin wrapper
@@ -1648,7 +1648,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 5.5. Update PyInstaller Spec
+- [x] 5.5. Update PyInstaller Spec
 
   **What to do**:
   - Update `CNAVE_Analyzer.spec` for new package structure
@@ -1703,7 +1703,7 @@ cn_3F_trend_optimized.py           # Transition layer: thin wrapper with re-expo
 
 ---
 
-- [ ] 5.6. Final Integration Tests
+- [x] 5.6. Final Integration Tests
 
   **What to do**:
   - Create `tests/integration/test_analysis_workflow.py`
@@ -1823,16 +1823,16 @@ pyinstaller CNAVE_Analyzer.spec --noconfirm
 ```
 
 ### Final Checklist
-- [ ] All "Must Have" requirements present
-- [ ] All "Must NOT Have" guardrails respected
-- [ ] All 5 tabs function identically to original
-- [ ] All optimization modules work (no performance regression)
-- [ ] All unit tests pass (>80% coverage on core services)
-- [ ] No circular import errors
-- [ ] Each module ≤150 lines (documented exceptions only)
-- [ ] Backward compatibility via transition layer
-- [ ] PyInstaller build succeeds
-- [ ] Application launches via both entry points
+- [x] All "Must Have" requirements present
+- [x] All "Must NOT Have" guardrails respected
+- [x] All 5 tabs function identically to original
+- [x] All optimization modules work (no performance regression)
+- [x] All unit tests pass (>80% coverage on core services)
+- [x] No circular import errors
+- [x] Each module ≤150 lines (documented exceptions only)
+- [x] Backward compatibility via transition layer
+- [x] PyInstaller build succeeds
+- [x] Application launches via both entry points
 
 ---
 

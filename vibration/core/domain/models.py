@@ -6,7 +6,8 @@ These models are framework-agnostic and have NO Qt dependencies.
 """
 
 from dataclasses import dataclass, field
-from typing import Optional, Dict, Any
+from typing import Optional, Dict, Any, List, Tuple, Union
+from datetime import datetime
 
 import numpy as np
 
@@ -123,3 +124,91 @@ class SignalData:
     def num_samples(self) -> int:
         """Get number of samples."""
         return len(self.data)
+
+
+@dataclass
+class TrendResult:
+    """
+    Result of trend analysis across multiple files.
+    
+    Contains aggregated RMS trend data from batch processing.
+    
+    Attributes:
+        timestamps: Timestamps for each data point (datetime or index).
+        rms_values: RMS values for each file.
+        filenames: List of processed filenames.
+        view_type: Signal type of output ('ACC', 'VEL', 'DIS').
+        frequency_band: (min_freq, max_freq) band filter applied.
+        channel_data: Per-channel aggregated data.
+        peak_values: Peak values for each file (optional).
+        peak_frequencies: Peak frequencies for each file (optional).
+        sampling_rate: Common sampling rate (Hz).
+        metadata: Additional analysis metadata.
+    """
+    timestamps: Union[np.ndarray, List[Union[datetime, int]]]
+    rms_values: np.ndarray
+    filenames: List[str]
+    view_type: str
+    frequency_band: Optional[Tuple[float, float]] = None
+    channel_data: Optional[Dict[str, Dict[str, Any]]] = None
+    peak_values: Optional[np.ndarray] = None
+    peak_frequencies: Optional[np.ndarray] = None
+    sampling_rate: float = 0.0
+    metadata: Optional[Dict[str, Any]] = field(default_factory=dict)
+    
+    def __post_init__(self):
+        """Validate and normalize fields after initialization."""
+        if isinstance(self.view_type, str):
+            self.view_type = self.view_type.upper()
+        
+        if self.metadata is None:
+            self.metadata = {}
+        
+        # Convert lists to numpy arrays if needed
+        if isinstance(self.rms_values, list):
+            self.rms_values = np.array(self.rms_values)
+        
+        if self.peak_values is not None and isinstance(self.peak_values, list):
+            self.peak_values = np.array(self.peak_values)
+        
+        if self.peak_frequencies is not None and isinstance(self.peak_frequencies, list):
+            self.peak_frequencies = np.array(self.peak_frequencies)
+    
+    @property
+    def num_files(self) -> int:
+        """Get number of processed files."""
+        return len(self.filenames)
+    
+    @property
+    def mean_rms(self) -> float:
+        """Get mean RMS value across all files."""
+        if len(self.rms_values) > 0:
+            return float(np.mean(self.rms_values))
+        return 0.0
+    
+    @property
+    def max_rms(self) -> float:
+        """Get maximum RMS value."""
+        if len(self.rms_values) > 0:
+            return float(np.max(self.rms_values))
+        return 0.0
+    
+    @property
+    def min_rms(self) -> float:
+        """Get minimum RMS value."""
+        if len(self.rms_values) > 0:
+            return float(np.min(self.rms_values))
+        return 0.0
+    
+    @property
+    def std_rms(self) -> float:
+        """Get standard deviation of RMS values."""
+        if len(self.rms_values) > 1:
+            return float(np.std(self.rms_values))
+        return 0.0
+    
+    @property
+    def success_count(self) -> int:
+        """Get count of successfully processed files."""
+        # RMS value of 0 typically indicates failure
+        return int(np.sum(self.rms_values > 0))

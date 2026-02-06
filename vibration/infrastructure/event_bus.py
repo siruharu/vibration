@@ -43,6 +43,7 @@ class EventBus(QObject):
     # Application events
     file_loaded = pyqtSignal(str)  # filepath
     files_loaded = pyqtSignal(list)  # list of filepaths
+    directory_selected = pyqtSignal(str)  # directory path
     analysis_complete = pyqtSignal(str, dict)  # analysis_type, results
     error_occurred = pyqtSignal(str, str)  # error_type, message
     progress_updated = pyqtSignal(int, str)  # percentage, message

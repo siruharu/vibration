@@ -13,8 +13,7 @@ from typing import List, Optional, Tuple, Callable, Literal
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from OPTIMIZATION_PATCH_LEVEL5_TREND import TrendParallelProcessor
+from .OPTIMIZATION_PATCH_LEVEL5_TREND import TrendParallelProcessor
 from vibration.core.domain.models import TrendResult
 
 

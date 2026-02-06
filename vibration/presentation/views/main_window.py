@@ -89,21 +89,21 @@ class MainWindow(QMainWindow):
         self._tabs[self.TAB_DATA_QUERY] = self.data_query_tab
         self.tab_widget.addTab(self.data_query_tab, "Data Query")
         
-        self.waterfall_tab = WaterfallTabView()
-        self._tabs[self.TAB_WATERFALL] = self.waterfall_tab
-        self.tab_widget.addTab(self.waterfall_tab, "Waterfall")
-        
         self.spectrum_tab = SpectrumTabView()
         self._tabs[self.TAB_SPECTRUM] = self.spectrum_tab
-        self.tab_widget.addTab(self.spectrum_tab, "Spectrum")
+        self.tab_widget.addTab(self.spectrum_tab, "Time/Spectrum")
         
         self.trend_tab = TrendTabView()
         self._tabs[self.TAB_TREND] = self.trend_tab
-        self.tab_widget.addTab(self.trend_tab, "Trend")
+        self.tab_widget.addTab(self.trend_tab, "RMS Trend")
         
         self.peak_tab = PeakTabView()
         self._tabs[self.TAB_PEAK] = self.peak_tab
-        self.tab_widget.addTab(self.peak_tab, "Peak")
+        self.tab_widget.addTab(self.peak_tab, "Band Peak Trend")
+        
+        self.waterfall_tab = WaterfallTabView()
+        self._tabs[self.TAB_WATERFALL] = self.waterfall_tab
+        self.tab_widget.addTab(self.waterfall_tab, "Waterfall")
     
     def _create_menu_bar(self):
         """Create menu bar structure."""
@@ -139,10 +139,10 @@ class MainWindow(QMainWindow):
         """Handle tab change event."""
         tab_names = [
             self.TAB_DATA_QUERY,
-            self.TAB_WATERFALL,
             self.TAB_SPECTRUM,
             self.TAB_TREND,
-            self.TAB_PEAK
+            self.TAB_PEAK,
+            self.TAB_WATERFALL
         ]
         if 0 <= index < len(tab_names):
             self.tab_changed.emit(index, tab_names[index])

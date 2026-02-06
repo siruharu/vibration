@@ -5,13 +5,19 @@ Coordinates SpectrumTabView and FFTService for spectrum analysis workflow.
 Uses constructor injection for dependencies - no service locator pattern.
 """
 import logging
+import os
 from typing import Optional, List
 
 import numpy as np
+from PyQt5.QtCore import Qt
+from PyQt5.QtWidgets import QApplication
 
 from vibration.core.services.fft_service import FFTService
+from vibration.core.services.file_service import FileService
 from vibration.core.domain.models import FFTResult, SignalData
 from vibration.presentation.views.tabs.spectrum_tab import SpectrumTabView
+from vibration.presentation.views.dialogs import ProgressDialog
+from vibration.infrastructure.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -29,15 +35,21 @@ class SpectrumPresenter:
         fft_service: FFT computation service instance.
     """
     
-    def __init__(self, view: SpectrumTabView, fft_service: FFTService):
+    def __init__(self, view: SpectrumTabView, fft_service: FFTService, file_service: FileService):
         self.view = view
         self.fft_service = fft_service
+        self.file_service = file_service
         
         self._current_data: Optional[np.ndarray] = None
         self._current_sampling_rate: float = 0.0
         self._current_view_type: str = 'ACC'
         self._signal_data_list: List[SignalData] = []
         self._last_results: List[FFTResult] = []
+        self._directory_path: str = ""
+        
+        self._event_bus = get_event_bus()
+        self._event_bus.files_loaded.connect(self._on_files_loaded)
+        self._event_bus.directory_selected.connect(self._on_directory_selected)
         
         self._connect_signals()
         logger.debug("SpectrumPresenter initialized")
@@ -47,6 +59,7 @@ class SpectrumPresenter:
         self.view.view_type_changed.connect(self._on_view_type_changed)
         self.view.window_type_changed.connect(self._on_window_type_changed)
         self.view.next_file_requested.connect(self._on_next_file_requested)
+        self.view.file_clicked.connect(self._on_file_clicked)
     
     def load_data(self, data: np.ndarray, sampling_rate: float,
                   signal_type: str = 'ACC', label: str = '') -> None:
@@ -88,8 +101,13 @@ class SpectrumPresenter:
         logger.info(f"Loaded {len(signals)} signals for analysis")
     
     def _on_compute_requested(self) -> None:
-        if not self._signal_data_list:
-            logger.warning("No data loaded, cannot compute")
+        if not self._directory_path:
+            logger.warning("No directory selected")
+            return
+        
+        selected_files = self.view.get_selected_files()
+        if not selected_files:
+            logger.warning("No files selected")
             return
         
         params = self.view.get_parameters()
@@ -105,37 +123,68 @@ class SpectrumPresenter:
         
         self.view.clear_plots()
         self._last_results = []
+        self._signal_data_list = []
         
-        for idx, signal_data in enumerate(self._signal_data_list):
-            try:
-                result = self._compute_single_signal(signal_data, view_type_str)
-                self._last_results.append(result)
-                
-                time_array = self._generate_time_array(
-                    len(signal_data.data), signal_data.sampling_rate
-                )
-                self.view.plot_waveform(
-                    time=time_array.tolist(),
-                    amplitude=signal_data.data.tolist(),
-                    label=signal_data.channel,
-                    color_index=idx,
-                    clear=(idx == 0)
-                )
-                
-                self.view.plot_spectrum(
-                    frequencies=result.frequency.tolist(),
-                    spectrum=result.spectrum.tolist(),
-                    label=signal_data.channel,
-                    color_index=idx,
-                    clear=(idx == 0)
-                )
-                
-                logger.debug(f"Plotted signal {idx}: {signal_data.channel}")
-                
-            except Exception as e:
-                logger.error(f"Error computing FFT for signal {idx}: {e}")
+        progress_dialog = ProgressDialog(len(selected_files), self.view)
+        progress_dialog.setWindowModality(Qt.WindowModal)
+        progress_dialog.show()
         
-        logger.info(f"Computed {len(self._last_results)} spectra, view_type={view_type_str}")
+        try:
+            for idx, filename in enumerate(selected_files):
+                progress_dialog.update_progress(idx + 1)
+                QApplication.processEvents()
+                
+                filepath = os.path.join(self._directory_path, filename)
+                
+                if not os.path.exists(filepath):
+                    logger.warning(f"File not found: {filepath}")
+                    continue
+                
+                try:
+                    file_data = self.file_service.load_file(filepath)
+                    
+                    if not file_data['is_valid']:
+                        logger.warning(f"Invalid file: {filename}")
+                        continue
+                    
+                    signal_data = SignalData(
+                        data=file_data['data'],
+                        sampling_rate=file_data['sampling_rate'],
+                        signal_type='ACC',
+                        channel=filename
+                    )
+                    self._signal_data_list.append(signal_data)
+                    
+                    result = self._compute_single_signal(signal_data, view_type_str)
+                    self._last_results.append(result)
+                    
+                    time_array = self._generate_time_array(
+                        len(signal_data.data), signal_data.sampling_rate
+                    )
+                    self.view.plot_waveform(
+                        time=time_array.tolist(),
+                        amplitude=signal_data.data.tolist(),
+                        label=filename,
+                        color_index=idx,
+                        clear=(idx == 0)
+                    )
+                    
+                    self.view.plot_spectrum(
+                        frequencies=result.frequency.tolist(),
+                        spectrum=result.spectrum.tolist(),
+                        label=filename,
+                        color_index=idx,
+                        clear=(idx == 0)
+                    )
+                    
+                    logger.debug(f"Plotted signal {idx}: {filename}")
+                    
+                except Exception as e:
+                    logger.error(f"Error processing file {filename}: {e}")
+            
+            logger.info(f"Computed {len(self._last_results)} spectra from {len(selected_files)} selected files, view_type={view_type_str}")
+        finally:
+            progress_dialog.close()
     
     def _compute_single_signal(self, signal_data: SignalData,
                                 view_type: str) -> FFTResult:
@@ -190,6 +239,65 @@ class SpectrumPresenter:
     
     def _on_next_file_requested(self) -> None:
         logger.debug("Next file requested")
+        
+        selected_items = self.view.file_list.selectedItems()
+        if not selected_items:
+            logger.warning("No files selected")
+            return
+        
+        last_selected = selected_items[-1]
+        current_index = self.view.file_list.row(last_selected)
+        total_count = self.view.file_list.count()
+        
+        if current_index < total_count - 1:
+            next_index = current_index + 1
+            next_item = self.view.file_list.item(next_index)
+            if next_item:
+                next_item.setSelected(True)
+                logger.info(f"Added file {next_index} to selection, re-plotting all selected files")
+                self._on_compute_requested()
+            else:
+                logger.warning(f"Could not find item at index {next_index}")
+        else:
+            logger.info("Already at last file")
+    
+    def _on_file_clicked(self, filename: str) -> None:
+        if not self._directory_path:
+            logger.warning("No directory path set")
+            return
+        
+        filepath = os.path.join(self._directory_path, filename)
+        if not os.path.exists(filepath):
+            logger.error(f"File not found: {filepath}")
+            return
+        
+        try:
+            file_data = self.file_service.load_file(filepath)
+            metadata = file_data.get('metadata', {})
+            
+            self.view.set_file_metadata(metadata)
+            
+            if file_data['is_valid']:
+                self.load_data(
+                    data=file_data['data'],
+                    sampling_rate=file_data['sampling_rate'],
+                    signal_type='ACC',
+                    label=filename
+                )
+                logger.info(f"Loaded file: {filename}")
+            else:
+                logger.warning(f"Invalid file data: {filename}")
+                
+        except Exception as e:
+            logger.error(f"Error loading file {filename}: {e}")
+    
+    def _on_directory_selected(self, directory: str) -> None:
+        self._directory_path = directory
+        logger.info(f"Directory path updated: {directory}")
+    
+    def _on_files_loaded(self, files: List[str]) -> None:
+        logger.info(f"Received {len(files)} files from Data Query")
+        self.view.set_files(files)
     
     def get_last_results(self) -> List[FFTResult]:
         """Get results from last computation."""
@@ -225,10 +333,12 @@ if __name__ == "__main__":
     mock_view.window_type_changed = MagicMock()
     mock_view.next_file_requested = MagicMock()
     
-    mock_service = MagicMock(spec=FFTService)
-    mock_service.window_type = 'hanning'
+    mock_fft_service = MagicMock(spec=FFTService)
+    mock_fft_service.window_type = 'hanning'
     
-    presenter = SpectrumPresenter(view=mock_view, fft_service=mock_service)
+    mock_file_service = MagicMock(spec=FileService)
+    
+    presenter = SpectrumPresenter(view=mock_view, fft_service=mock_fft_service, file_service=mock_file_service)
     
     test_data = np.sin(np.linspace(0, 2 * np.pi, 1000))
     presenter.load_data(test_data, sampling_rate=1000.0, label="test")

@@ -26,7 +26,7 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
 from PyQt5 import QtWidgets, QtCore, QtGui
 
-from responsive_layout_utils import (
+from .responsive_layout_utils import (
     ResponsiveLayoutMixin, 
     calculate_window_size, 
     create_responsive_button

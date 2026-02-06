@@ -79,19 +79,22 @@ class ApplicationFactory:
         spectrum_tab = main_window.get_tab(MainWindow.TAB_SPECTRUM)
         self._presenters['spectrum'] = SpectrumPresenter(
             view=spectrum_tab,
-            fft_service=self._services['fft']
+            fft_service=self._services['fft'],
+            file_service=self._services['file']
         )
         
         trend_tab = main_window.get_tab(MainWindow.TAB_TREND)
         self._presenters['trend'] = TrendPresenter(
             view=trend_tab,
-            trend_service=self._services['trend']
+            trend_service=self._services['trend'],
+            file_service=self._services['file']
         )
         
         peak_tab = main_window.get_tab(MainWindow.TAB_PEAK)
         self._presenters['peak'] = PeakPresenter(
             view=peak_tab,
-            peak_service=self._services['peak']
+            peak_service=self._services['peak'],
+            file_service=self._services['file']
         )
         
         logger.info("Created all presenters with DI")
@@ -101,8 +104,13 @@ class ApplicationFactory:
         self.create_services()
         main_window = self.create_main_window()
         self.create_presenters(main_window)
+        self._wire_tab_switching(main_window)
         logger.info("Application fully wired")
         return main_window
+    
+    def _wire_tab_switching(self, main_window: MainWindow):
+        event_bus = get_event_bus()
+        event_bus.tab_changed.connect(lambda tab_name: main_window.set_current_tab(MainWindow.TAB_SPECTRUM))
     
     def get_service(self, name: str) -> Any:
         return self._services.get(name)

@@ -16,16 +16,12 @@ from vibration.presentation.models.file_list_model import FileListModel
 
 
 class DataQueryTabView(QWidget):
-    """
-    View for data query tab (Tab 1).
-    
-    Provides directory selection, file list display with checkboxes,
-    and file selection for other tabs. Emits signals for presenter.
-    """
+    """View for data query tab - file selection and loading."""
     
     directory_selected = pyqtSignal(str)
-    files_loaded = pyqtSignal(list)
+    files_loaded = pyqtSignal(str)
     files_chosen = pyqtSignal(list)
+    switch_to_spectrum_requested = pyqtSignal()
     sensitivity_changed = pyqtSignal(float)
     
     def __init__(self, parent: Optional[QWidget] = None):
@@ -73,12 +69,13 @@ class DataQueryTabView(QWidget):
             self.directory_selected.emit(dir_path)
     
     def _on_load_clicked(self):
-        self.files_loaded.emit([])
+        self.files_loaded.emit("")
     
     def _on_choose_clicked(self):
         selected = self._model.get_checked_files()
         if selected:
             self.files_chosen.emit(selected)
+            self.switch_to_spectrum_requested.emit()
         else:
             QMessageBox.warning(self, "No Files Selected", "No files have been selected.")
     

@@ -9,14 +9,10 @@ import logging
 from typing import Optional, List, Dict, Any
 from pathlib import Path
 from collections import defaultdict
-import sys
 
-_project_root = Path(__file__).parent.parent.parent.parent
-if str(_project_root) not in sys.path:
-    sys.path.insert(0, str(_project_root))
-
-from file_parser import FileParser
+from vibration.core.services.file_parser import FileParser
 from vibration.presentation.views.tabs.data_query_tab import DataQueryTabView
+from vibration.infrastructure.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
 
@@ -34,6 +30,7 @@ class DataQueryPresenter:
         self._directory_path: str = ""
         self._all_files: List[str] = []
         self._grouped_data: List[Dict[str, Any]] = []
+        self._event_bus = get_event_bus()
         self._connect_signals()
         logger.debug("DataQueryPresenter initialized")
     
@@ -41,9 +38,11 @@ class DataQueryPresenter:
         self.view.directory_selected.connect(self._on_directory_selected)
         self.view.files_loaded.connect(self._on_load_requested)
         self.view.files_chosen.connect(self._on_files_chosen)
+        self.view.switch_to_spectrum_requested.connect(self._on_switch_to_spectrum)
     
     def _on_directory_selected(self, directory: str):
         self._directory_path = directory
+        self._event_bus.directory_selected.emit(directory)
         logger.info(f"Directory selected: {directory}")
     
     def _on_load_requested(self, _):
@@ -90,6 +89,8 @@ class DataQueryPresenter:
     
     def _on_files_chosen(self, files: List[str]):
         logger.info(f"Files chosen: {len(files)} files")
+        self._event_bus.files_loaded.emit(files)
+        logger.debug(f"Emitted files_loaded event with {len(files)} file names")
     
     def get_directory(self) -> str:
         return self._directory_path
@@ -121,6 +122,9 @@ class DataQueryPresenter:
     def set_directory(self, path: str):
         self._directory_path = path
         self.view.set_directory(path)
+    
+    def _on_switch_to_spectrum(self):
+        self._event_bus.tab_changed.emit('spectrum')
 
 
 if __name__ == "__main__":

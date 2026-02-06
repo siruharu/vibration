@@ -26,8 +26,8 @@ import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
-from file_parser import FileParser
-from fft_engine import FFTEngine
+from vibration.core.services.file_parser import FileParser
+from vibration.core.services.fft_engine import FFTEngine
 
 
 class SpectrumPicker:

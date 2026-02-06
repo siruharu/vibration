@@ -11,8 +11,7 @@ from typing import Optional, Literal
 
 import numpy as np
 
-sys.path.insert(0, str(Path(__file__).parent.parent.parent.parent))
-from fft_engine import FFTEngine
+from .fft_engine import FFTEngine
 from vibration.core.domain.models import FFTResult
 
 

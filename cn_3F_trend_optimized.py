@@ -97,7 +97,7 @@ from PyQt5.QtGui import QIcon
 from matplotlib import rcParams
 
 # ===== Modular Dialog Components =====
-from vibration.presentation.views.dialogs import ProgressDialog, AxisRangeDialog
+from vibration.presentation.views.dialogs import ProgressDialog, AxisRangeDialog, ListSaveDialog
 
 rcParams.update({'font.size': 7, 'font.family': DEFAULT_FONT})
 

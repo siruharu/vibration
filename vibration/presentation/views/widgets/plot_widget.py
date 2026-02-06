@@ -111,6 +111,10 @@ class PlotWidget(QWidget):
         """Get the matplotlib figure."""
         return self.figure
     
+    def get_canvas(self):
+        """Get the matplotlib canvas."""
+        return self.canvas
+    
     def set_title(self, title: str, **kwargs):
         """Set plot title with default styling."""
         kwargs.setdefault('fontsize', self.DEFAULT_STYLE['title_size'])

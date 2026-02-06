@@ -1,11 +1,5 @@
 """Entry point for python -m vibration."""
-
-
-def main():
-    """Placeholder main function."""
-    print("vibration package initialized")
-    print("Full application coming soon...")
-
+from vibration.app import main
 
 if __name__ == "__main__":
     main()

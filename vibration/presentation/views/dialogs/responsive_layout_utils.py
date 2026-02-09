@@ -1,26 +1,100 @@
 """
-반응형 레이아웃 유틸리티
+중앙화된 반응형 레이아웃 유틸리티
 - DPI 스케일링
-- 동적 폰트 크기
-- 그래프 범례 관리
+- 통일된 폰트 시스템  
+- 동적 위젯 크기
+- 그래프 스타일 상수
 """
-
-from PyQt5 import QtWidgets, QtCore
+import sys
+from PyQt5 import QtWidgets, QtCore, QtGui
+import matplotlib
 import matplotlib.pyplot as plt
+
+
+def get_app_font_family() -> str:
+    if sys.platform == 'darwin':
+        return 'Apple SD Gothic Neo'
+    elif sys.platform == 'win32':
+        return 'Malgun Gothic'
+    else:
+        return 'Noto Sans CJK KR'
+
+APP_FONT_FAMILY = get_app_font_family()
+matplotlib.rcParams['font.family'] = APP_FONT_FAMILY
+matplotlib.rcParams['axes.unicode_minus'] = False
+
+
+class PlotFontSizes:
+    TITLE = 9
+    LABEL = 8
+    TICK = 7
+    LEGEND = 7
+    ANNOTATION = 7
+    MARKER_LABEL = 7
+
+
+def get_dpi_scale_factor() -> float:
+    """DPI 스케일 팩터를 반환합니다.
+    
+    Qt는 macOS Retina 등 HiDPI를 자체 처리하므로,
+    위젯 크기 스케일링은 항상 1.0을 사용합니다.
+    (macOS에서 logicalDotsPerInch()=72이므로 72/96=0.75가 되어
+    위젯이 25% 축소되는 문제를 방지합니다.)
+    """
+    return 1.0
+
+
+def scaled(base_size: int) -> int:
+    return base_size
+
+
+def scaled_size(width: int, height: int) -> tuple:
+    return (width, height)
+
+
+class WidgetSizes:
+    OPTION_CONTROL_W = 129
+    OPTION_CONTROL_H = 27
+    META_LABEL_W = 113
+    META_LABEL_H = 27
+    SPEC_CONTROL_W = 136
+    SPEC_CONTROL_H = 27
+    AXIS_BTN_W = 100
+    AXIS_BTN_H = 31
+    AXIS_INPUT_W = 70
+    AXIS_INPUT_H = 31
+    DATA_LIST_LABEL_W = 175
+    DATA_LIST_LABEL_H = 31
+    DATA_LIST_TEXT_W = 175
+    DATA_LIST_TEXT_H = 900
+    FILE_LIST_W = 300
+    DIR_DISPLAY_H = 50
+
+    @classmethod
+    def option_control(cls): return scaled_size(cls.OPTION_CONTROL_W, cls.OPTION_CONTROL_H)
+    @classmethod
+    def meta_label(cls): return scaled_size(cls.META_LABEL_W, cls.META_LABEL_H)
+    @classmethod
+    def spec_control(cls): return scaled_size(cls.SPEC_CONTROL_W, cls.SPEC_CONTROL_H)
+    @classmethod
+    def axis_button(cls): return scaled_size(cls.AXIS_BTN_W, cls.AXIS_BTN_H)
+    @classmethod
+    def axis_input(cls): return scaled_size(cls.AXIS_INPUT_W, cls.AXIS_INPUT_H)
+    @classmethod
+    def data_list_label(cls): return scaled_size(cls.DATA_LIST_LABEL_W, cls.DATA_LIST_LABEL_H)
+    @classmethod
+    def data_list_text(cls): return scaled_size(cls.DATA_LIST_TEXT_W, cls.DATA_LIST_TEXT_H)
+    @classmethod
+    def file_list_width(cls): return scaled(cls.FILE_LIST_W)
+    @classmethod
+    def dir_display_height(cls): return scaled(cls.DIR_DISPLAY_H)
 
 
 class ResponsiveLayoutMixin:
     """반응형 레이아웃을 위한 Mixin 클래스"""
 
     def get_dpi_scale_factor(self):
-        """현재 DPI 스케일 팩터 계산"""
-        try:
-            screen = QtWidgets.QApplication.primaryScreen()
-            dpi = screen.logicalDotsPerInch()
-            base_dpi = 96.0  # Windows 기본 DPI
-            return dpi / base_dpi
-        except:
-            return 1.0
+        return get_dpi_scale_factor()
 
     def scale_size(self, base_size):
         """크기를 DPI에 맞게 스케일링"""
@@ -81,9 +155,9 @@ class ResponsiveLayoutMixin:
         """반응형 그래프 스타일 적용"""
         font_size = self.get_dynamic_font_size(base_size=10)
 
-        ax.set_title(title, fontsize=font_size + 1, fontname='AppleGothic', pad=10)
-        ax.set_xlabel(xlabel, fontsize=font_size, fontname='AppleGothic')
-        ax.set_ylabel(ylabel, fontsize=font_size, fontname='AppleGothic')
+        ax.set_title(title, fontsize=font_size + 1, fontname=APP_FONT_FAMILY, pad=10)
+        ax.set_xlabel(xlabel, fontsize=font_size, fontname=APP_FONT_FAMILY)
+        ax.set_ylabel(ylabel, fontsize=font_size, fontname=APP_FONT_FAMILY)
         ax.grid(True, alpha=0.3, linestyle='--', linewidth=0.5)
         ax.tick_params(labelsize=font_size - 1)
 
@@ -112,28 +186,30 @@ def create_responsive_button(text, min_width=100, min_height=30, style_class="de
     button.setMinimumSize(min_width, min_height)
 
     styles = {
-        "default": """
-            QPushButton {
+        "default": f"""
+            QPushButton {{
                 background-color: #5a5a5a;
                 color: white;
+                font-family: '{APP_FONT_FAMILY}';
                 font-size: 11pt;
                 border-radius: 3px;
                 padding: 5px 15px;
-            }
-            QPushButton:hover { background-color: #6a6a6a; }
-            QPushButton:pressed { background-color: #4a4a4a; }
+            }}
+            QPushButton:hover {{ background-color: #6a6a6a; }}
+            QPushButton:pressed {{ background-color: #4a4a4a; }}
         """,
-        "primary": """
-            QPushButton {
+        "primary": f"""
+            QPushButton {{
                 background-color: #4a4a4a;
                 color: white;
+                font-family: '{APP_FONT_FAMILY}';
                 font-size: 11pt;
                 font-weight: bold;
                 border-radius: 3px;
                 padding: 5px 15px;
-            }
-            QPushButton:hover { background-color: #5a5a5a; }
-            QPushButton:pressed { background-color: #3a3a3a; }
+            }}
+            QPushButton:hover {{ background-color: #5a5a5a; }}
+            QPushButton:pressed {{ background-color: #3a3a3a; }}
         """
     }
 

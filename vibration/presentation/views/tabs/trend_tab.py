@@ -46,6 +46,7 @@ class TrendTabView(QWidget):
     save_requested = pyqtSignal()
     list_save_requested = pyqtSignal(dict, str)
     view_type_changed = pyqtSignal(int)
+    channel_filter_changed = pyqtSignal()
     
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -57,6 +58,7 @@ class TrendTabView(QWidget):
         self.trend_x_value = []
         self.trend_rms_values = []
         self.trend_file_names = []
+        self._all_files: List[str] = []
         self._setup_ui()
         self._connect_signals()
         self._init_mouse_events()
@@ -277,6 +279,45 @@ class TrendTabView(QWidget):
         )
         self.select_all_btn3.clicked.connect(self.Querry_list3.selectAll)
         self.deselect_all_btn3.clicked.connect(self.Querry_list3.clearSelection)
+        
+        # 채널 체크박스 - 파일 목록 필터
+        self.checkBox_13.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_14.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_15.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_16.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_17.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_18.stateChanged.connect(self._on_channel_filter_changed)
+    
+    def _on_channel_filter_changed(self):
+        """채널 체크박스 상태 변경을 처리 - 파일 목록을 필터링합니다."""
+        self._update_filtered_file_list()
+        self.channel_filter_changed.emit()
+    
+    def _update_filtered_file_list(self):
+        """선택된 채널 체크박스에 따라 파일 목록을 업데이트합니다."""
+        if not self._all_files:
+            return
+        
+        selected_channels = []
+        checkboxes = [
+            self.checkBox_13, self.checkBox_14, self.checkBox_15,
+            self.checkBox_16, self.checkBox_17, self.checkBox_18
+        ]
+        for idx, checkbox in enumerate(checkboxes, start=1):
+            if checkbox.isChecked():
+                selected_channels.append(str(idx))
+        
+        if not selected_channels:
+            self.Querry_list3.clear()
+            self.Querry_list3.addItems(self._all_files)
+            return
+        
+        filtered_files = [
+            f for f in self._all_files
+            if any(f.endswith(f"_{ch}.txt") for ch in selected_channels)
+        ]
+        self.Querry_list3.clear()
+        self.Querry_list3.addItems(filtered_files)
     
     def get_parameters(self) -> dict:
         try:
@@ -331,6 +372,7 @@ class TrendTabView(QWidget):
         self.trend_canvas.draw()
     
     def set_files(self, files: List[str]):
+        self._all_files = list(files)
         self.Querry_list3.clear()
         self.Querry_list3.addItems(files)
     
@@ -344,6 +386,27 @@ class TrendTabView(QWidget):
         self.trend_canvas.mpl_connect('motion_notify_event', self._on_mouse_move)
         self.trend_canvas.mpl_connect('button_press_event', self._on_mouse_click)
         self.trend_canvas.mpl_connect('key_press_event', self._on_key_press)
+        self.trend_canvas.mpl_connect('scroll_event', self._on_scroll)
+    
+    def _on_scroll(self, event):
+        if event.inaxes != self.trend_ax:
+            return
+        
+        scale_factor = 0.85 if event.button == 'up' else 1.15
+        
+        xlim = self.trend_ax.get_xlim()
+        ylim = self.trend_ax.get_ylim()
+        xdata, ydata = event.xdata, event.ydata
+        
+        x_left = xdata - (xdata - xlim[0]) * scale_factor
+        x_right = xdata + (xlim[1] - xdata) * scale_factor
+        self.trend_ax.set_xlim(x_left, x_right)
+        
+        y_bottom = ydata - (ydata - ylim[0]) * scale_factor
+        y_top = ydata + (ylim[1] - ydata) * scale_factor
+        self.trend_ax.set_ylim(y_bottom, y_top)
+        
+        self.trend_canvas.draw_idle()
     
     def _on_mouse_move(self, event):
         if not event.inaxes:

@@ -55,6 +55,7 @@ class SpectrumTabView(QWidget):
     close_all_windows_requested = pyqtSignal()
     axis_range_changed = pyqtSignal(str, str, float, float)
     time_range_selected = pyqtSignal(float, float)
+    channel_filter_changed = pyqtSignal()
     
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -585,10 +586,61 @@ class SpectrumTabView(QWidget):
         to_str = self.date_to.date().toString("yyyy-MM-dd")
         self.date_filter_changed.emit(from_str, to_str)
     
+    def _on_channel_filter_changed(self):
+        """채널 체크박스 상태 변경을 처리 - 파일 목록을 필터링합니다."""
+        self._update_filtered_file_list()
+        self.channel_filter_changed.emit()
+    
+    def _update_filtered_file_list(self):
+        """선택된 채널 체크박스에 따라 파일 목록을 업데이트합니다."""
+        if not self._all_files:
+            return
+        
+        selected_channels = []
+        checkboxes = [
+            self.checkBox, self.checkBox_2, self.checkBox_3,
+            self.checkBox_4, self.checkBox_5, self.checkBox_6
+        ]
+        for idx, checkbox in enumerate(checkboxes, start=1):
+            if checkbox.isChecked():
+                selected_channels.append(str(idx))
+        
+        if not selected_channels:
+            self.Querry_list.clear()
+            self.Querry_list.addItems(self._all_files)
+            return
+        
+        filtered_files = [
+            f for f in self._all_files
+            if any(f.endswith(f"_{ch}.txt") for ch in selected_channels)
+        ]
+        self.Querry_list.clear()
+        self.Querry_list.addItems(filtered_files)
+    
     def _on_span_selected(self, t_start: float, t_end: float):
         """SpanSelector 시간 범위 선택 처리."""
         if abs(t_end - t_start) > 0.001:
             self.time_range_selected.emit(t_start, t_end)
+    
+    def _on_scroll(self, event, ax, canvas):
+        if event.inaxes != ax:
+            return
+        
+        scale_factor = 0.85 if event.button == 'up' else 1.15
+        
+        xlim = ax.get_xlim()
+        ylim = ax.get_ylim()
+        xdata, ydata = event.xdata, event.ydata
+        
+        x_left = xdata - (xdata - xlim[0]) * scale_factor
+        x_right = xdata + (xlim[1] - xdata) * scale_factor
+        ax.set_xlim(x_left, x_right)
+        
+        y_bottom = ydata - (ydata - ylim[0]) * scale_factor
+        y_top = ydata + (ylim[1] - ydata) * scale_factor
+        ax.set_ylim(y_bottom, y_top)
+        
+        canvas.draw_idle()
     
     def _connect_signals(self):
         self.plot_btn.clicked.connect(self.compute_requested)
@@ -605,10 +657,21 @@ class SpectrumTabView(QWidget):
         self.refresh_button.clicked.connect(self.refresh_requested)
         self.close_all_button.clicked.connect(self.close_all_windows_requested)
         
+        # 채널 체크박스 - 파일 목록 필터
+        self.checkBox.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_2.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_3.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_4.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_5.stateChanged.connect(self._on_channel_filter_changed)
+        self.checkBox_6.stateChanged.connect(self._on_channel_filter_changed)
+        
         self.wavecanvas.mpl_connect("button_press_event",
                                      lambda event: self._on_canvas_click(event, 'wave'))
         self.canvas.mpl_connect("button_press_event",
                                  lambda event: self._on_canvas_click(event, 'spec'))
+        
+        self.canvas.mpl_connect('scroll_event', lambda e: self._on_scroll(e, self.ax, self.canvas))
+        self.wavecanvas.mpl_connect('scroll_event', lambda e: self._on_scroll(e, self.waveax, self.wavecanvas))
     
     def _connect_picking_events(self):
         self.cid_move = self.canvas.mpl_connect("motion_notify_event", self._on_mouse_move)

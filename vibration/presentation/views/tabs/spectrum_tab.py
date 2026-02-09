@@ -357,9 +357,7 @@ class SpectrumTabView(QWidget):
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.ax = self.figure.add_subplot(111)
         self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
-        self.canvas.setFocusPolicy(Qt.ClickFocus)
-        
-        self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
+        self.canvas.setFocusPolicy(Qt.StrongFocus)
         
         self._connect_picking_events()
         
@@ -657,6 +655,20 @@ class SpectrumTabView(QWidget):
         self.cid_move = self.canvas.mpl_connect("motion_notify_event", self._on_mouse_move)
         self.cid_click = self.canvas.mpl_connect("button_press_event", self._on_mouse_click)
         self.cid_key = self.canvas.mpl_connect("key_press_event", self._on_key_press)
+        self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
+    
+    def _reconnect_picking_events(self):
+        if hasattr(self, 'cid_move') and self.cid_move:
+            self.canvas.mpl_disconnect(self.cid_move)
+        if hasattr(self, 'cid_click') and self.cid_click:
+            self.canvas.mpl_disconnect(self.cid_click)
+        if hasattr(self, 'cid_key') and self.cid_key:
+            self.canvas.mpl_disconnect(self.cid_key)
+        self.cid_move = self.canvas.mpl_connect("motion_notify_event", self._on_mouse_move)
+        self.cid_click = self.canvas.mpl_connect("button_press_event", self._on_mouse_click)
+        self.cid_key = self.canvas.mpl_connect("key_press_event", self._on_key_press)
+        self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
+        self.hover_pos = None
     
     def get_parameters(self) -> dict:
         return {
@@ -672,8 +684,9 @@ class SpectrumTabView(QWidget):
         if clear:
             self.ax.clear()
             self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
-            self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
             self.data_dict.clear()
+            self.markers.clear()
+            self._reconnect_picking_events()
         
         color = PLOT_COLORS[color_index % len(PLOT_COLORS)]
         self.ax.plot(frequencies, spectrum, color=color, linewidth=0.5, label=label, alpha=0.8)
@@ -733,9 +746,9 @@ class SpectrumTabView(QWidget):
     def clear_plots(self):
         self.ax.clear()
         self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
-        self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
         self.markers.clear()
         self.data_dict.clear()
+        self._reconnect_picking_events()
         self.canvas.draw()
         self.waveax.clear()
         self.waveax.set_title("Waveform", fontsize=PlotFontSizes.TITLE)

@@ -7,6 +7,211 @@
 
 ---
 
+## 9. PyInstaller exe 빌드 안정화 (2026-02-09)
+
+### 9.1 변경 개요
+
+PyInstaller로 Windows exe를 빌드했을 때 발생하는 3가지 핵심 문제를 수정했습니다:
+1. **multiprocessing 창 다중 생성** — `freeze_support()` 미호출로 exe 실행 시 프로세스가 무한 생성
+2. **Spectrum picking 미작동** — exe 환경에서 Detail Analysis 다이얼로그의 그래프 피킹 기능 미동작
+3. **아이콘/로고 표시 실패** — exe 번들 환경에서 리소스 경로 미해결
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| **multiprocessing** | exe 실행 시 창 여러 개 뜨며 오류 | `freeze_support()` 이중 안전장치로 정상 동작 |
+| **Spectrum picking** | Detail Analysis에서 클릭해도 마커 없음 | 좌클릭=빨간 마커+라벨, 우클릭=마커 제거 |
+| **아이콘 경로** | `Path("icon.ico")` — exe에서 찾지 못함 | `get_resource_path("icn.ico")` — `sys._MEIPASS` 자동 해결 |
+| **spec 파일** | `datas=[]` — 아이콘 미번들 | `datas=[('icn.ico', '.')]` — 아이콘 번들 포함 |
+
+### 9.2 파일별 변경 상세
+
+#### 9.2.1 `vibration/__init__.py`
+
+**이전:**
+```python
+# 빈 패키지 초기화 파일
+```
+
+**이후:**
+```python
+import sys
+from pathlib import Path
+
+def get_resource_path(relative_path: str) -> Path:
+    """PyInstaller exe 번들 환경과 개발 환경 모두에서 리소스 경로를 해결합니다.
+    
+    - exe 환경: sys._MEIPASS (임시 추출 디렉토리) 기준
+    - 개발 환경: 프로젝트 루트 (vibration/ 상위) 기준
+    """
+    if getattr(sys, 'frozen', False):
+        base = Path(sys._MEIPASS)
+    else:
+        base = Path(__file__).parent.parent
+    return base / relative_path
+```
+
+#### 9.2.2 `vibration/__main__.py`
+
+**이전:**
+```python
+from vibration.app import main
+main()
+```
+
+**이후:**
+```python
+import multiprocessing
+multiprocessing.freeze_support()  # PyInstaller exe에서 반드시 먼저 호출
+
+from vibration.app import main
+main()
+```
+
+> `freeze_support()`는 모든 import보다 먼저 호출되어야 합니다. Windows에서 `ProcessPoolExecutor` 사용 시 자식 프로세스가 메인 모듈을 re-import하는데, 이 호출이 없으면 GUI 창이 무한 생성됩니다.
+
+#### 9.2.3 `vibration/app.py`
+
+**이전:**
+```python
+def main():
+    app = QApplication(sys.argv)
+    # ...
+```
+
+**이후:**
+```python
+def main():
+    import multiprocessing
+    multiprocessing.freeze_support()  # 이중 안전장치
+    app = QApplication(sys.argv)
+    # ...
+```
+
+#### 9.2.4 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+**변경 내용:**
+- `_reconnect_picking_events()` 메서드 추가 — disconnect → reconnect + hover_dot 재생성
+- `plot_spectrum(clear=True)` 시 `_reconnect_picking_events()` 호출
+- `clear_plots()` 시 `_reconnect_picking_events()` 호출
+- `_connect_picking_events()`에 hover_dot 생성 통합 (중복 제거)
+- canvas focus 정책: `ClickFocus` → `StrongFocus`
+
+**원인:** `fig.clf()` 호출 시 기존 이벤트 연결과 hover_dot 참조가 소실되어, 이후 picking이 작동하지 않았습니다.
+
+#### 9.2.5 `vibration/presentation/views/dialogs/list_save_dialog_helpers.py`
+
+**이전:**
+```python
+class SpectrumPicker:
+    def on_mouse_click(self, event): pass  # 빈 메서드
+    def add_marker(self, x, y): pass       # 빈 메서드
+```
+
+**이후:**
+```python
+class SpectrumPicker:
+    def on_mouse_click(self, event):
+        if event.button == 1:       # 좌클릭 → 마커 추가
+            self.add_marker(event.xdata, event.ydata)
+        elif event.button == 3:     # 우클릭 → 마커 전체 제거
+            self._clear_markers()
+    
+    def add_marker(self, x, y):
+        # 레거시 add_marker_spect 기반 구현
+        # 1. data_dict에서 모든 라인 데이터 수집
+        # 2. 클릭 좌표에서 가장 가까운 파일+데이터포인트 탐색
+        # 3. 빨간 마커 ('ro', ms=8) + 텍스트 라벨 (파일명, 주파수, 진폭) 표시
+        # 4. canvas.draw_idle()로 갱신
+```
+
+#### 9.2.6 `vibration/presentation/views/dialogs/list_save_dialog.py`
+
+**변경 내용:**
+- `_finalize_plot()`에서 이벤트 중복 등록 방지 패턴 적용
+- `_cid_move`, `_cid_click`, `_cid_key` 인스턴스 변수로 이벤트 ID 저장
+- 다음 Plot 시 기존 이벤트 disconnect → 새로 connect
+
+**원인:** Plot 버튼을 여러 번 누르면 이벤트 핸들러가 중복 등록되어 마커 생성이 비정상적이었습니다.
+
+#### 9.2.7 `vibration/presentation/views/splash_screen.py`
+
+**이전:**
+```python
+icon_path = Path(__file__).parent.parent.parent.parent / "icn.ico"
+```
+
+**이후:**
+```python
+from vibration import get_resource_path
+icon_path = get_resource_path("icn.ico")
+```
+
+#### 9.2.8 `vibration/presentation/views/main_window.py`
+
+**이전:**
+```python
+icon_path = Path("icon.ico")  # 파일명 오류 + 상대경로
+if icon_path.exists():
+    self.setWindowIcon(QIcon(str(icon_path)))
+```
+
+**이후:**
+```python
+from vibration import get_resource_path
+
+icon_path = get_resource_path("icn.ico")  # 올바른 파일명 + exe/개발 환경 모두 지원
+if icon_path.exists():
+    self.setWindowIcon(QIcon(str(icon_path)))
+```
+
+#### 9.2.9 `CNAVE_Analyzer.spec`
+
+**이전:**
+```python
+a = Analysis(
+    ['vibration/__main__.py'],
+    datas=[],
+    # ...
+)
+exe = EXE(
+    # ...
+    icon='icn.ico',
+)
+```
+
+**이후:**
+```python
+a = Analysis(
+    ['vibration/__main__.py'],
+    datas=[('icn.ico', '.')],  # 아이콘 파일을 exe 번들에 포함
+    # ...
+)
+exe = EXE(
+    # ...
+    icon='icn.ico',
+)
+```
+
+### 9.3 PyInstaller 빌드 명령어
+
+```bash
+# Windows VM에서 실행
+pyinstaller CNAVE_Analyzer.spec
+```
+
+결과물: `dist/CNAVE_Analyzer.exe`
+
+### 9.4 하위 호환성
+
+| 항목 | 호환성 |
+|------|--------|
+| 개발 환경 (`python -m vibration`) | ✅ `get_resource_path()`가 프로젝트 루트 기준으로 동작 |
+| 기존 시그널/위젯 | ✅ 변경 없음 |
+| 기존 탭 기능 | ✅ 변경 없음 (spectrum_tab picking 재연결만 추가) |
+| macOS 빌드 | ✅ `BUNDLE` 섹션 유지 |
+
+---
+
 ## 8. Waterfall 탭 강화 (2026-02-09)
 
 ### 8.1 변경 개요

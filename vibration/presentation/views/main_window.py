@@ -22,6 +22,7 @@ from vibration.presentation.views.tabs import (
     PeakTabView
 )
 from vibration.presentation.views.dialogs.responsive_layout_utils import APP_FONT_FAMILY, get_screen_size
+from vibration import get_resource_path
 
 
 class MainWindow(QMainWindow):
@@ -70,7 +71,7 @@ class MainWindow(QMainWindow):
         font = QFont(APP_FONT_FAMILY, 9)
         self.setFont(font)
         
-        icon_path = Path("icon.ico")
+        icon_path = get_resource_path("icn.ico")
         if icon_path.exists():
             self.setWindowIcon(QIcon(str(icon_path)))
     

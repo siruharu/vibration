@@ -129,6 +129,8 @@ class ApplicationFactory:
 def main():
     """애플리케이션의 메인 진입점."""
     import sys
+    import multiprocessing
+    multiprocessing.freeze_support()
     
     app = QApplication.instance()
     if app is None:

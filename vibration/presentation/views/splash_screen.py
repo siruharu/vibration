@@ -56,7 +56,8 @@ class ModernSplashScreen(QtWidgets.QWidget):
 
         logo_label = QtWidgets.QLabel()
         try:
-            icon_path = Path(__file__).parent.parent.parent.parent / "icn.ico"
+            from vibration import get_resource_path
+            icon_path = get_resource_path("icn.ico")
             pixmap = QtGui.QPixmap(str(icon_path))
             if not pixmap.isNull():
                 pixmap = pixmap.scaled(128, 128, QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)

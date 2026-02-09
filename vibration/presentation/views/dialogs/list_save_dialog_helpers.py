@@ -91,7 +91,14 @@ class SpectrumPicker:
             self.canvas.draw_idle()
     
     def on_mouse_click(self, event) -> None:
-        """마커 배치를 위한 마우스 클릭 이벤트를 처리합니다."""
+        if not event.inaxes:
+            return
+        if event.button == 1:
+            x, y = self.hover_dot.get_data()
+            if x is not None and len(x) > 0 and y is not None and len(y) > 0:
+                self.add_marker(float(x[0]), float(y[0]))
+        elif event.button == 3:
+            self.clear_markers()
     
     def on_key_press(self, event) -> None:
         """데이터 피킹을 위한 키보드 탐색을 처리합니다."""
@@ -139,7 +146,35 @@ class SpectrumPicker:
         self.canvas.draw_idle()
     
     def add_marker(self, x: float, y: float) -> None:
-        """가장 가까운 데이터 포인트에 마커를 추가합니다."""
+        min_distance = float('inf')
+        closest_file = None
+        closest_x = closest_y = None
+
+        for file_name, (data_x, data_y) in self.data_dict.items():
+            x_array = np.array(data_x)
+            y_array = np.array(data_y)
+            idx = int((np.abs(x_array - x)).argmin())
+            x_val = float(x_array[idx])
+            y_val = float(y_array[idx])
+            dist = np.hypot(x_val - x, y_val - y)
+            if dist < min_distance:
+                min_distance = dist
+                closest_file = file_name
+                closest_x, closest_y = x_val, y_val
+
+        if closest_file is not None and closest_x is not None and closest_y is not None:
+            marker = self.ax.plot(
+                np.round(closest_x, 4), np.round(closest_y, 4),
+                marker='o', color='red', markersize=7
+            )[0]
+            label = self.ax.text(
+                closest_x, closest_y,
+                f"  file: {closest_file}\n  X: {closest_x:.4f}, Y: {closest_y:.4e}",
+                fontsize=7, fontweight='bold', color='black',
+                ha='left', va='bottom'
+            )
+            self.markers.append((marker, label))
+            self.canvas.draw_idle()
     
     def clear_markers(self) -> None:
         """플롯에서 모든 마커를 제거합니다."""

@@ -457,15 +457,22 @@ class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
         self.tab_wavecanvas.draw_idle()
         self.tab_canvas.draw_idle()
 
+        if hasattr(self, '_cid_move') and self._cid_move:
+            self.tab_canvas.mpl_disconnect(self._cid_move)
+        if hasattr(self, '_cid_click') and self._cid_click:
+            self.tab_canvas.mpl_disconnect(self._cid_click)
+        if hasattr(self, '_cid_key') and self._cid_key:
+            self.tab_canvas.mpl_disconnect(self._cid_key)
+
         self.spectrum_picker = SpectrumPicker(
             self.tab_ax, self.tab_canvas, self.data_dict
         )
-        self.tab_canvas.mpl_connect("motion_notify_event", 
-                                    self.spectrum_picker.on_mouse_move)
-        self.tab_canvas.mpl_connect("button_press_event", 
-                                    self.spectrum_picker.on_mouse_click)
-        self.tab_canvas.mpl_connect("key_press_event", 
-                                    self.spectrum_picker.on_key_press)
+        self._cid_move = self.tab_canvas.mpl_connect(
+            "motion_notify_event", self.spectrum_picker.on_mouse_move)
+        self._cid_click = self.tab_canvas.mpl_connect(
+            "button_press_event", self.spectrum_picker.on_mouse_click)
+        self._cid_key = self.tab_canvas.mpl_connect(
+            "key_press_event", self.spectrum_picker.on_key_press)
 
     def _on_save_button_clicked(self) -> None:
         if not self.spectrum_data_dict1:

@@ -1,8 +1,8 @@
 """
-Spectrum analysis presenter (MVP pattern).
+스펙트럼 분석 프레젠터 (MVP 패턴).
 
-Coordinates SpectrumTabView and FFTService for spectrum analysis workflow.
-Uses constructor injection for dependencies - no service locator pattern.
+SpectrumTabView와 FFTService를 조율하여 스펙트럼 분석 워크플로우를 처리합니다.
+생성자 주입 방식으로 의존성을 관리합니다 - 서비스 로케이터 패턴 미사용.
 """
 import logging
 import os
@@ -28,11 +28,11 @@ VIEW_TYPE_STR_TO_INT = {'ACC': 1, 'VEL': 2, 'DIS': 3}
 
 class SpectrumPresenter:
     """
-    Presenter for spectrum analysis tab (MVP pattern).
+    스펙트럼 분석 탭 프레젠터 (MVP 패턴).
     
-    Args:
-        view: Spectrum tab view instance.
-        fft_service: FFT computation service instance.
+    인자:
+        view: 스펙트럼 탭 뷰 인스턴스.
+        fft_service: FFT 연산 서비스 인스턴스.
     """
     
     def __init__(self, view: SpectrumTabView, fft_service: FFTService, file_service: FileService):
@@ -64,13 +64,13 @@ class SpectrumPresenter:
     def load_data(self, data: np.ndarray, sampling_rate: float,
                   signal_type: str = 'ACC', label: str = '') -> None:
         """
-        Load single signal data for analysis.
+        단일 신호 데이터를 분석을 위해 로드합니다.
         
-        Args:
-            data: Time-domain signal data (1D array).
-            sampling_rate: Sampling rate in Hz.
-            signal_type: Type of signal ('ACC', 'VEL', 'DIS').
-            label: Label for the signal (e.g., filename).
+        인자:
+            data: 시간 영역 신호 데이터 (1차원 배열).
+            sampling_rate: 샘플링 레이트 (Hz).
+            signal_type: 신호 유형 ('ACC', 'VEL', 'DIS').
+            label: 신호 라벨 (예: 파일명).
         """
         self._current_data = np.asarray(data).flatten()
         self._current_sampling_rate = sampling_rate
@@ -86,10 +86,10 @@ class SpectrumPresenter:
     
     def load_multiple_signals(self, signals: List[SignalData]) -> None:
         """
-        Load multiple signals for batch analysis.
+        배치 분석을 위해 다중 신호를 로드합니다.
         
-        Args:
-            signals: List of SignalData objects to analyze.
+        인자:
+            signals: 분석할 SignalData 객체 목록.
         """
         self._signal_data_list = signals
         
@@ -201,10 +201,10 @@ class SpectrumPresenter:
     
     def _on_view_type_changed(self, view_type_int: int) -> None:
         """
-        Handle view type change (ACC/VEL/DIS).
+        뷰 타입 변경 처리 (ACC/VEL/DIS).
         
-        Args:
-            view_type_int: View type as integer (1=ACC, 2=VEL, 3=DIS).
+        인자:
+            view_type_int: 정수형 뷰 타입 (1=ACC, 2=VEL, 3=DIS).
         """
         view_type_str = VIEW_TYPE_INT_TO_STR.get(view_type_int, 'ACC')
         
@@ -221,10 +221,10 @@ class SpectrumPresenter:
     
     def _on_window_type_changed(self, window_type: str) -> None:
         """
-        Handle window type change.
+        윈도우 타입 변경 처리.
         
-        Args:
-            window_type: Window function name (e.g., 'Hanning', 'Flattop').
+        인자:
+            window_type: 윈도우 함수 이름 (예: 'Hanning', 'Flattop').
         """
         normalized = window_type.lower()
         
@@ -300,15 +300,15 @@ class SpectrumPresenter:
         self.view.set_files(files)
     
     def get_last_results(self) -> List[FFTResult]:
-        """Get results from last computation."""
+        """마지막 연산 결과를 반환합니다."""
         return self._last_results.copy()
     
     def get_current_view_type(self) -> str:
-        """Get current view type as string."""
+        """현재 뷰 타입을 문자열로 반환합니다."""
         return self._current_view_type
     
     def has_data(self) -> bool:
-        """Check if data is loaded."""
+        """데이터 로드 여부를 확인합니다."""
         return bool(self._signal_data_list)
 
 

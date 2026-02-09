@@ -1,7 +1,7 @@
 """
-Band Peak Trend tab view - exact replication of legacy tab_5.
+밴드 피크 트렌드 탭 뷰 - 레거시 tab_5의 정확한 복제.
 
-Matches cn_3F_trend_optimized.py lines 1810-2100 for pixel-perfect UI compatibility.
+cn_3F_trend_optimized.py 1810-2100 라인과 동일한 픽셀 완벽 UI 호환.
 """
 from typing import List, Optional
 import re
@@ -31,12 +31,12 @@ CHANNEL_COLORS = ['r', 'g', 'b', 'c', 'm', 'y']
 
 class PeakTabView(QWidget):
     """
-    Band Peak Trend tab view - exact legacy replication.
+    밴드 피크 트렌드 탭 뷰 - 레거시 정확 복제.
     
-    Layout structure matches legacy tab_5:
-    - Left: checkboxes (1CH-6CH), Select All/Deselect All buttons, file list
-    - Top right: FFT options (Δf, Window, Overlap, Convert, BandLimit), Plot/Save buttons
-    - Bottom: peak trend graph
+    레거시 tab_5 레이아웃 구조:
+    - 좌측: 체크박스 (1CH-6CH), Select All/Deselect All 버튼, 파일 목록
+    - 우측 상단: FFT 옵션 (Δf, Window, Overlap, Convert, BandLimit), Plot/Save 버튼
+    - 하단: 피크 트렌드 그래프
     """
     
     compute_requested = pyqtSignal()

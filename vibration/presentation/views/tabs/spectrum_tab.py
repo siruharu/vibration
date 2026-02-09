@@ -1,7 +1,7 @@
 """
-Spectrum analysis tab view - exact replication of legacy tab_3.
+스펙트럼 분석 탭 뷰 - 레거시 tab_3의 정확한 복제.
 
-Matches cn_3F_trend_optimized.py lines 1095-1650 for pixel-perfect UI compatibility.
+cn_3F_trend_optimized.py 1095-1650 라인과 동일한 픽셀 완벽 UI 호환.
 """
 from typing import List, Optional
 
@@ -27,12 +27,12 @@ PLOT_COLORS = ['b', 'g', 'r', 'c', 'm', 'y']
 
 class SpectrumTabView(QWidget):
     """
-    Time/Spectrum tab view - exact legacy replication.
+    시간/스펙트럼 탭 뷰 - 레거시 정확 복제.
     
-    Layout structure matches legacy tab_3:
-    - Left: checkboxes, file list, metadata
-    - Top right: FFT options, Plot/Next buttons
-    - Bottom: waveform + spectrum plots with axis controls
+    레거시 tab_3 레이아웃 구조:
+    - 좌측: 체크박스, 파일 목록, 메타데이터
+    - 우측 상단: FFT 옵션, Plot/Next 버튼
+    - 하단: 파형 + 스펙트럼 플롯과 축 컨트롤
     """
     
     compute_requested = pyqtSignal()

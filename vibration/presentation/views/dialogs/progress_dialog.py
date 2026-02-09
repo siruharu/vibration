@@ -1,7 +1,7 @@
 """
-Progress dialog for long-running operations.
+장시간 작업을 위한 진행률 다이얼로그.
 
-Extracted from cn_3F_trend_optimized.py for modular architecture.
+cn_3F_trend_optimized.py에서 모듈화 아키텍처를 위해 추출.
 """
 
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QApplication
@@ -10,24 +10,24 @@ from PyQt5.QtCore import Qt
 
 class ProgressDialog(QDialog):
     """
-    Modal dialog displaying progress of long-running operations.
+    장시간 작업의 진행률을 표시하는 모달 다이얼로그.
     
-    Shows a progress bar with percentage completion and status label.
-    Updates are processed immediately via QApplication.processEvents().
+    백분율 완료 상태와 상태 라벨이 포함된 진행률 바를 표시합니다.
+    QApplication.processEvents()를 통해 즉시 업데이트를 처리합니다.
     
-    Attributes:
-        label: QLabel displaying current progress percentage
-        progress_bar: QProgressBar showing completion status
-        layout: QVBoxLayout containing dialog widgets
+    속성:
+        label: 현재 진행률 백분율을 표시하는 QLabel
+        progress_bar: 완료 상태를 표시하는 QProgressBar
+        layout: 다이얼로그 위젯을 포함하는 QVBoxLayout
     """
     
     def __init__(self, total_tasks, parent=None):
         """
-        Initialize progress dialog.
+        진행률 다이얼로그를 초기화합니다.
         
-        Args:
-            total_tasks: Total number of tasks for progress calculation
-            parent: Parent widget (optional)
+        인자:
+            total_tasks: 진행률 계산을 위한 총 작업 수
+            parent: 부모 위젯 (선택사항)
         """
         super().__init__(parent)
         self.setWindowTitle("진행 상황")
@@ -46,10 +46,10 @@ class ProgressDialog(QDialog):
 
     def update_progress(self, value):
         """
-        Update progress bar and label.
+        진행률 바와 라벨을 업데이트합니다.
         
-        Args:
-            value: Current progress value (0 to total_tasks)
+        인자:
+            value: 현재 진행률 값 (0 ~ total_tasks)
         """
         self.progress_bar.setValue(value)
         percent = int((value / self.progress_bar.maximum()) * 100)

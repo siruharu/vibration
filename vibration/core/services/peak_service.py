@@ -1,8 +1,8 @@
 """
-Peak analysis service.
+피크 분석 서비스.
 
-Wraps PeakParallelProcessor for batch peak trend computation.
-NO Qt dependencies - pure Python/NumPy implementation.
+PeakParallelProcessor를 래핑하여 배치 피크 트렌드 연산을 수행합니다.
+Qt 의존성 없음 - 순수 Python/NumPy 구현.
 """
 
 import re
@@ -26,23 +26,23 @@ VIEW_TYPE_REVERSE = {1: 'ACC', 2: 'VEL', 3: 'DIS'}
 
 class PeakService:
     """
-    Service layer for peak analysis with batch processing.
-    
-    Wraps PeakParallelProcessor and provides business logic for:
-    - Computing peak trends across multiple files
-    - Aggregating results by channel
-    - Extracting timestamps from filenames
-    
-    Args:
-        max_workers: Number of parallel workers (default: CPU count - 1).
+    피크 분석과 배치 처리를 위한 서비스 레이어.
+
+    PeakParallelProcessor를 래핑하여 다음 비즈니스 로직을 제공합니다:
+    - 다중 파일에 걸친 피크 트렌드 계산
+    - 채널별 결과 집계
+    - 파일명에서 타임스탬프 추출
+
+    인자:
+        max_workers: 병렬 워커 수 (기본값: CPU 코어 수 - 1).
     """
     
     def __init__(self, max_workers: int = None):
         """
-        Initialize peak service.
-        
-        Args:
-            max_workers: Number of parallel workers.
+        피크 서비스를 초기화합니다.
+
+        인자:
+            max_workers: 병렬 워커 수.
         """
         self.max_workers = max_workers
         self._processor = PeakParallelProcessor(max_workers=max_workers)
@@ -58,19 +58,19 @@ class PeakService:
         progress_callback: Optional[Callable[[int, int], None]] = None
     ) -> TrendResult:
         """
-        Compute peak trend across multiple files.
-        
-        Args:
-            file_paths: List of file paths to analyze.
-            delta_f: Frequency resolution in Hz.
-            overlap: Overlap percentage (not used, for compatibility).
-            window_type: Window function ('hanning', 'flattop', 'rectangular').
-            view_type: Signal type ('ACC', 'VEL', 'DIS').
-            frequency_band: (min_freq, max_freq) band filter.
-            progress_callback: Optional callback (current, total) for progress.
-            
-        Returns:
-            TrendResult with peak values as primary data (in rms_values field).
+        다중 파일에 걸쳐 피크 트렌드를 계산합니다.
+
+        인자:
+            file_paths: 분석할 파일 경로 목록.
+            delta_f: 주파수 분해능 (Hz).
+            overlap: 오버랩 비율 (미사용, 호환성 유지 목적).
+            window_type: 윈도우 함수 ('hanning', 'flattop', 'rectangular').
+            view_type: 신호 유형 ('ACC', 'VEL', 'DIS').
+            frequency_band: (min_freq, max_freq) 대역 필터.
+            progress_callback: 진행률 콜백 (current, total) (선택사항).
+
+        반환:
+            피크 값을 주요 데이터로 포함하는 TrendResult (rms_values 필드에 저장).
         """
         if not file_paths:
             return TrendResult(
@@ -105,21 +105,21 @@ class PeakService:
         threshold: float = 0.1
     ) -> List[Tuple[float, float]]:
         """
-        Find peaks in spectrum.
-        
-        Args:
-            frequencies: Frequency array.
-            spectrum: Spectrum amplitude array.
-            num_peaks: Number of peaks to find.
-            threshold: Minimum amplitude threshold (relative to max).
-            
-        Returns:
-            List of (frequency, amplitude) tuples sorted by amplitude descending.
+        스펙트럼에서 피크를 탐색합니다.
+
+        인자:
+            frequencies: 주파수 배열.
+            spectrum: 스펙트럼 진폭 배열.
+            num_peaks: 탐색할 피크 수.
+            threshold: 최소 진폭 임계값 (최대값 대비 상대값).
+
+        반환:
+            진폭 내림차순으로 정렬된 (주파수, 진폭) 튜플 목록.
         """
         if len(spectrum) == 0:
             return []
         
-        # Find local maxima
+        # 극대값 탐색
         peaks = []
         max_val = np.max(spectrum)
         threshold_val = max_val * threshold
@@ -129,7 +129,7 @@ class PeakService:
                 if spectrum[i] >= threshold_val:
                     peaks.append((float(frequencies[i]), float(spectrum[i])))
         
-        # Sort by amplitude descending, take top N
+        # 진폭 내림차순 정렬 후 상위 N개 선택
         peaks.sort(key=lambda x: x[1], reverse=True)
         return peaks[:num_peaks]
     
@@ -139,7 +139,7 @@ class PeakService:
         view_type: str,
         frequency_band: Optional[Tuple[float, float]]
     ) -> TrendResult:
-        """Aggregate raw processor results into TrendResult with peak values."""
+        """원시 프로세서 결과를 피크 값이 포함된 TrendResult로 집계합니다."""
         success_results = [r for r in raw_results if r.success]
         
         if not success_results:
@@ -199,10 +199,10 @@ class PeakService:
     
     def _extract_timestamp(self, filename: str) -> datetime:
         """
-        Extract timestamp from filename.
-        
-        Pattern: YYYYMMDD_HHMMSS or similar.
-        Falls back to current time if parsing fails.
+        파일명에서 타임스탬프를 추출합니다.
+
+        패턴: YYYYMMDD_HHMMSS 또는 유사 형식.
+        파싱 실패 시 현재 시간으로 대체합니다.
         """
         patterns = [
             r'(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})',
@@ -225,13 +225,13 @@ class PeakService:
         return datetime.now()
     
     def _extract_channel(self, filename: str) -> str:
-        """Extract channel identifier from filename (typically last segment before extension)."""
+        """파일명에서 채널 식별자를 추출합니다 (일반적으로 확장자 전 마지막 세그먼트)."""
         base = Path(filename).stem
         parts = base.split('_')
         return parts[-1] if parts else '0'
     
     def get_parameters(self) -> dict:
-        """Get current processor parameters."""
+        """현재 프로세서 파라미터를 반환합니다."""
         return {
             'max_workers': self._processor.processor.max_workers
         }

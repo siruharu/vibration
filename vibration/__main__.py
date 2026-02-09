@@ -1,4 +1,4 @@
-"""Entry point for python -m vibration."""
+"""python -m vibration 진입점."""
 from vibration.app import main
 
 if __name__ == "__main__":

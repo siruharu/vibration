@@ -1,7 +1,7 @@
 """
-Overall RMS Trend tab view - exact replication of legacy tab_4.
+전체 RMS 트렌드 탭 뷰 - 레거시 tab_4의 정확한 복제.
 
-Matches cn_3F_trend_optimized.py lines 1585-1810 for pixel-perfect UI compatibility.
+cn_3F_trend_optimized.py 1585-1810 라인과 동일한 픽셀 완벽 UI 호환.
 """
 from typing import List, Optional
 import re
@@ -31,12 +31,12 @@ CHANNEL_COLORS = ['r', 'g', 'b', 'c', 'm', 'y']
 
 class TrendTabView(QWidget):
     """
-    Overall RMS Trend tab view - exact legacy replication.
+    전체 RMS 트렌드 탭 뷰 - 레거시 정확 복제.
     
-    Layout structure matches legacy tab_4:
-    - Left: checkboxes, file list
-    - Top right: FFT options, buttons (Calculation & Plot, Load Data & Plot, Data Extraction)
-    - Bottom: trend graph + Pick Data List panel
+    레거시 tab_4 레이아웃 구조:
+    - 좌측: 체크박스, 파일 목록
+    - 우측 상단: FFT 옵션, 버튼 (Calculation & Plot, Load Data & Plot, Data Extraction)
+    - 하단: 트렌드 그래프 + Pick Data List 패널
     """
     
     compute_requested = pyqtSignal()

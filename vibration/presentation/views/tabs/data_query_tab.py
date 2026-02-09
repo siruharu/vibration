@@ -1,8 +1,8 @@
 """
-Data query tab view.
+데이터 조회 탭 뷰.
 
-Tab 1 for directory selection and file list display.
-Extracted from cn_3F_trend_optimized.py for modular architecture.
+디렉토리 선택 및 파일 목록 표시를 위한 Tab 1.
+cn_3F_trend_optimized.py에서 모듈화 아키텍처를 위해 추출.
 """
 from typing import Optional, List, Dict, Any
 
@@ -16,7 +16,7 @@ from vibration.presentation.models.file_list_model import FileListModel
 
 
 class DataQueryTabView(QWidget):
-    """View for data query tab - file selection and loading."""
+    """데이터 조회 탭 뷰 - 파일 선택 및 로딩."""
     
     directory_selected = pyqtSignal(str)
     files_loaded = pyqtSignal(str)

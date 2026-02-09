@@ -1,8 +1,8 @@
 """
-FFT Service for vibration analysis.
+진동 분석을 위한 FFT 서비스.
 
-Wraps fft_engine.FFTEngine with business logic for signal processing.
-NO Qt dependencies - pure Python/NumPy implementation.
+fft_engine.FFTEngine을 래핑하여 신호 처리 비즈니스 로직을 제공합니다.
+Qt 의존성 없음 - 순수 Python/NumPy 구현.
 """
 
 import sys
@@ -21,18 +21,18 @@ WindowType = Literal['hanning', 'flattop', 'hamming', 'blackman', 'rectangular']
 
 class FFTService:
     """
-    Service layer for FFT computation with signal conversion.
+    FFT 연산과 신호 변환을 위한 서비스 레이어.
     
-    Wraps FFTEngine and provides business logic for:
-    - Computing frequency spectrum from time-domain signals
-    - Converting between acceleration, velocity, and displacement
-    - Applying zero padding for low-frequency filtering
+    FFTEngine을 래핑하여 다음 비즈니스 로직을 제공합니다:
+    - 시간 영역 신호에서 주파수 스펙트럼 계산
+    - 가속도, 속도, 변위 간 변환
+    - 저주파 필터링을 위한 제로 패딩 적용
     
-    Args:
-        sampling_rate: Sampling rate in Hz.
-        delta_f: Frequency resolution in Hz.
-        overlap: Overlap percentage (0-100).
-        window_type: Window function type.
+    인자:
+        sampling_rate: 샘플링 레이트 (Hz).
+        delta_f: 주파수 분해능 (Hz).
+        overlap: 오버랩 비율 (0-100).
+        window_type: 윈도우 함수 유형.
     """
     
     VIEW_TYPE_MAP = {'ACC': 1, 'VEL': 2, 'DIS': 3}
@@ -65,19 +65,19 @@ class FFTService:
         zero_padding_freq: float = 0.0
     ) -> FFTResult:
         """
-        Compute FFT spectrum from time-domain signal.
+        시간 영역 신호에서 FFT 스펙트럼을 계산합니다.
         
-        Args:
-            data: Time-domain signal data (1D array).
-            view_type: Desired output type ('ACC', 'VEL', 'DIS').
-            input_signal_type: Type of input signal ('ACC', 'VEL', 'DIS').
-            zero_padding_freq: Zero out frequencies below this value (Hz).
+        인자:
+            data: 시간 영역 신호 데이터 (1차원 배열).
+            view_type: 원하는 출력 유형 ('ACC', 'VEL', 'DIS').
+            input_signal_type: 입력 신호 유형 ('ACC', 'VEL', 'DIS').
+            zero_padding_freq: 이 값 이하의 주파수를 제로 처리 (Hz).
         
-        Returns:
-            FFTResult with frequency and spectrum data.
+        반환:
+            주파수 및 스펙트럼 데이터가 포함된 FFTResult.
         
-        Raises:
-            ValueError: If data is too short for FFT computation.
+        예외:
+            ValueError: 데이터가 FFT 연산에 필요한 길이보다 짧은 경우.
         """
         data = np.asarray(data).flatten()
         
@@ -123,15 +123,15 @@ class FFTService:
         to_type: ViewType
     ) -> np.ndarray:
         """
-        Convert spectrum between signal types using frequency-domain integration/differentiation.
+        주파수 영역 적분/미분을 통한 신호 유형 간 스펙트럼 변환.
         
-        Based on mdl_FFT_N conversion logic:
-        - ACC -> VEL: divide by jω (integrate)
-        - ACC -> DIS: divide by (jω)² (double integrate)
-        - VEL -> ACC: multiply by jω (differentiate)
-        - VEL -> DIS: divide by jω (integrate)
-        - DIS -> ACC: multiply by (jω)² (double differentiate)
-        - DIS -> VEL: multiply by jω (differentiate)
+        mdl_FFT_N 변환 로직 기반:
+        - ACC -> VEL: jω로 나눔 (적분)
+        - ACC -> DIS: (jω)²으로 나눔 (이중 적분)
+        - VEL -> ACC: jω를 곱함 (미분)
+        - VEL -> DIS: jω로 나눔 (적분)
+        - DIS -> ACC: (jω)²를 곱함 (이중 미분)
+        - DIS -> VEL: jω를 곱함 (미분)
         """
         if from_type == to_type:
             return spectrum
@@ -171,14 +171,14 @@ class FFTService:
         frequency: np.ndarray,
         cutoff_freq: float
     ) -> np.ndarray:
-        """Zero out spectrum values below cutoff frequency."""
+        """차단 주파수 이하의 스펙트럼 값을 제로 처리합니다."""
         result = spectrum.copy()
         mask = frequency < (cutoff_freq + 0.01)
         result[mask] = 0
         return result
     
     def get_parameters(self) -> dict:
-        """Get current FFT parameters."""
+        """현재 FFT 파라미터를 반환합니다."""
         return {
             'sampling_rate': self.sampling_rate,
             'delta_f': self.delta_f,

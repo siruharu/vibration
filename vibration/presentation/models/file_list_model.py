@@ -1,8 +1,8 @@
 """
-File list table model.
+파일 목록 테이블 모델.
 
-QAbstractTableModel for displaying file metadata in table view.
-Extracted from cn_3F_trend_optimized.py Tab 1 for modular architecture.
+테이블 뷰에 파일 메타데이터를 표시하는 QAbstractTableModel.
+cn_3F_trend_optimized.py Tab 1에서 모듈화 아키텍처를 위해 추출.
 """
 from typing import List, Dict, Any, Optional
 
@@ -11,33 +11,33 @@ from PyQt5.QtCore import QAbstractTableModel, Qt, QModelIndex
 
 class FileListModel(QAbstractTableModel):
     """
-    Model for file list table.
+    파일 목록 테이블 모델.
     
-    Displays grouped file data with date, time, count, and filenames.
-    Supports checkbox selection for multi-file operations.
+    날짜, 시간, 개수, 파일명으로 그룹화된 파일 데이터를 표시합니다.
+    다중 파일 작업을 위한 체크박스 선택을 지원합니다.
     """
     
     def __init__(self, parent=None):
-        """Initialize file list model."""
+        """파일 목록 모델을 초기화합니다."""
         super().__init__(parent)
         self._data: List[Dict[str, Any]] = []
         self._headers = ['Date', 'Time', 'Count', 'Files', 'Select']
         self._checked_rows: set = set()
     
     def rowCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        """Return number of rows."""
+        """행 수를 반환합니다."""
         if parent.isValid():
             return 0
         return len(self._data)
     
     def columnCount(self, parent: QModelIndex = QModelIndex()) -> int:
-        """Return number of columns."""
+        """열 수를 반환합니다."""
         if parent.isValid():
             return 0
         return len(self._headers)
     
     def data(self, index: QModelIndex, role: int = Qt.DisplayRole) -> Any:
-        """Return data for given index and role."""
+        """주어진 인덱스와 역할에 대한 데이터를 반환합니다."""
         if not index.isValid():
             return None
         
@@ -66,7 +66,7 @@ class FileListModel(QAbstractTableModel):
         return None
     
     def setData(self, index: QModelIndex, value: Any, role: int = Qt.EditRole) -> bool:
-        """Set data for checkbox column."""
+        """체크박스 열의 데이터를 설정합니다."""
         if not index.isValid():
             return False
         
@@ -81,7 +81,7 @@ class FileListModel(QAbstractTableModel):
         return False
     
     def flags(self, index: QModelIndex) -> Qt.ItemFlags:
-        """Return item flags (enable checkbox for Select column)."""
+        """항목 플래그를 반환합니다 (Select 열에 체크박스 활성화)."""
         if not index.isValid():
             return Qt.NoItemFlags
         
@@ -92,7 +92,7 @@ class FileListModel(QAbstractTableModel):
     
     def headerData(self, section: int, orientation: Qt.Orientation,
                    role: int = Qt.DisplayRole) -> Any:
-        """Return header data."""
+        """헤더 데이터를 반환합니다."""
         if role == Qt.DisplayRole and orientation == Qt.Horizontal:
             if 0 <= section < len(self._headers):
                 return self._headers[section]
@@ -100,10 +100,10 @@ class FileListModel(QAbstractTableModel):
     
     def set_files(self, files: List[Dict[str, Any]]) -> None:
         """
-        Update file list.
+        파일 목록을 업데이트합니다.
         
-        Args:
-            files: List of dicts with keys: date, time, count, files
+        인자:
+            files: date, time, count, files 키를 포함하는 딕셔너리 목록
         """
         self.beginResetModel()
         self._data = files
@@ -111,15 +111,15 @@ class FileListModel(QAbstractTableModel):
         self.endResetModel()
     
     def get_files(self) -> List[Dict[str, Any]]:
-        """Get current file list."""
+        """현재 파일 목록을 반환합니다."""
         return self._data.copy()
     
     def get_checked_rows(self) -> List[int]:
-        """Get list of checked row indices."""
+        """체크된 행 인덱스 목록을 반환합니다."""
         return sorted(self._checked_rows)
     
     def get_checked_files(self) -> List[str]:
-        """Get list of filenames from checked rows."""
+        """체크된 행의 파일명 목록을 반환합니다."""
         result = []
         for row in sorted(self._checked_rows):
             if row < len(self._data):
@@ -131,7 +131,7 @@ class FileListModel(QAbstractTableModel):
         return result
     
     def set_all_checked(self, checked: bool) -> None:
-        """Check or uncheck all rows."""
+        """모든 행을 체크하거나 해제합니다."""
         self.beginResetModel()
         if checked:
             self._checked_rows = set(range(len(self._data)))
@@ -140,7 +140,7 @@ class FileListModel(QAbstractTableModel):
         self.endResetModel()
     
     def toggle_all(self) -> None:
-        """Toggle all checkboxes."""
+        """모든 체크박스를 토글합니다."""
         all_checked = len(self._checked_rows) == len(self._data)
         self.set_all_checked(not all_checked)
 

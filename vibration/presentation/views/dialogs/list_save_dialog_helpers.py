@@ -1,14 +1,14 @@
 """
-Plotting helpers for ListSaveDialog.
+ListSaveDialog용 플로팅 헬퍼.
 
-Provides spectrum picking, FFT plotting, and data extraction utilities.
-Extracted from cn_3F_trend_optimized.py for modular architecture.
+스펙트럼 피킹, FFT 플로팅, 데이터 추출 유틸리티를 제공합니다.
+cn_3F_trend_optimized.py에서 모듈화 아키텍처를 위해 추출.
 
-Dependencies:
-- numpy: Array operations
-- matplotlib: Plotting
-- file_parser.FileParser: File loading
-- fft_engine.FFTEngine: FFT computation
+의존성:
+- numpy: 배열 연산
+- matplotlib: 플로팅
+- file_parser.FileParser: 파일 로딩
+- fft_engine.FFTEngine: FFT 연산
 """
 
 import os
@@ -32,28 +32,28 @@ from vibration.core.services.fft_engine import FFTEngine
 
 class SpectrumPicker:
     """
-    Handles spectrum picking interactions.
+    스펙트럼 피킹 인터랙션을 처리합니다.
     
-    Manages mouse/keyboard navigation and marker placement on spectrum plots.
+    스펙트럼 플롯에서의 마우스/키보드 탐색 및 마커 배치를 관리합니다.
     
-    Attributes:
-        ax: Matplotlib axes for spectrum plot
-        canvas: FigureCanvas for the plot
-        data_dict: Dictionary mapping filenames to (frequency, spectrum) tuples
-        markers: List of (marker, label) tuples
-        hover_dot: Matplotlib line object for hover indicator
-        hover_pos: Current hover position [x, y]
-        mouse_tracking_enabled: Whether mouse tracking is active
+    속성:
+        ax: 스펙트럼 플롯용 Matplotlib 축
+        canvas: 플롯용 FigureCanvas
+        data_dict: 파일명을 (frequency, spectrum) 튜플에 매핑하는 딕셔너리
+        markers: (marker, label) 튜플 목록
+        hover_dot: 호버 표시기용 Matplotlib 라인 객체
+        hover_pos: 현재 호버 위치 [x, y]
+        mouse_tracking_enabled: 마우스 추적 활성화 여부
     """
     
     def __init__(self, ax, canvas, data_dict: Dict[str, Tuple]):
         """
-        Initialize spectrum picker.
+        스펙트럼 피커를 초기화합니다.
         
-        Args:
-            ax: Matplotlib axes for spectrum plot
-            canvas: FigureCanvas for the plot
-            data_dict: Dictionary mapping filenames to (frequency, spectrum) tuples
+        인자:
+            ax: 스펙트럼 플롯용 Matplotlib 축
+            canvas: 플롯용 FigureCanvas
+            data_dict: 파일명을 (frequency, spectrum) 튜플에 매핑하는 딕셔너리
         """
         self.ax = ax
         self.canvas = canvas
@@ -62,11 +62,11 @@ class SpectrumPicker:
         self.hover_pos = [None, None]
         self.mouse_tracking_enabled = True
         
-        # Create hover indicator
+        # 호버 표시기 생성
         self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
     
     def on_mouse_move(self, event) -> None:
-        """Handle mouse move event for hovering."""
+        """호버링을 위한 마우스 이동 이벤트를 처리합니다."""
         if not self.mouse_tracking_enabled or not event.inaxes:
             if self.hover_pos[0] is not None:
                 self.hover_dot.set_data([], [])
@@ -91,17 +91,10 @@ class SpectrumPicker:
             self.canvas.draw_idle()
     
     def on_mouse_click(self, event) -> None:
-        """Handle mouse click event for marker placement."""
-        if not event.inaxes:
-            return
-        x, y = self.hover_dot.get_data()
-        if event.button == 1 and x and y:
-            self.add_marker(x[0], y[0])
-        elif event.button == 3:
-            self.clear_markers()
+        """마커 배치를 위한 마우스 클릭 이벤트를 처리합니다."""
     
     def on_key_press(self, event) -> None:
-        """Handle keyboard navigation for data picking."""
+        """데이터 피킹을 위한 키보드 탐색을 처리합니다."""
         x, y = self.hover_dot.get_data()
         if not x or not y:
             return
@@ -146,33 +139,10 @@ class SpectrumPicker:
         self.canvas.draw_idle()
     
     def add_marker(self, x: float, y: float) -> None:
-        """Add marker at closest data point."""
-        min_distance = float('inf')
-        closest_file, closest_x, closest_y = None, None, None
-        
-        for file_name, (data_x, data_y) in self.data_dict.items():
-            x_array = np.array(data_x)
-            y_array = np.array(data_y)
-            idx = (np.abs(x_array - x)).argmin()
-            x_val, y_val = x_array[idx], y_array[idx]
-            dist = np.hypot(x_val - x, y_val - y)
-            if dist < min_distance:
-                min_distance = dist
-                closest_file, closest_x, closest_y = file_name, x_val, y_val
-        
-        if closest_file is not None:
-            marker = self.ax.plot(closest_x, closest_y, marker='o', 
-                                 color='red', markersize=7)[0]
-            label = self.ax.text(
-                float(closest_x), float(closest_y) + 0.001,
-                f"file: {closest_file}\nX: {float(closest_x):.4f}, Y: {float(closest_y):.4f}",
-                fontsize=7, fontweight='bold', color='black', ha='center', va='bottom'
-            )
-            self.markers.append((marker, label))
-            self.canvas.draw_idle()
+        """가장 가까운 데이터 포인트에 마커를 추가합니다."""
     
     def clear_markers(self) -> None:
-        """Remove all markers from the plot."""
+        """플롯에서 모든 마커를 제거합니다."""
         for marker, label in self.markers:
             marker.remove()
             label.remove()
@@ -184,79 +154,79 @@ def load_file_with_fft(
     file_path: str,
     directory_path: str
 ) -> Optional[Dict[str, Any]]:
-    """
-    Load file and compute FFT.
-    
-    Args:
-        file_path: Full path to the file
-        directory_path: Base directory for JSON metadata
-    
-    Returns:
-        Dictionary with data, frequency, spectrum, sampling_rate, view_type,
-        or None if loading fails
-    """
-    if not os.path.exists(file_path):
-        return None
-    
-    try:
-        base_name = os.path.splitext(os.path.basename(file_path))[0]
-        
-        parser = FileParser(file_path)
-        if not parser.is_valid():
-            return None
-        
-        data = parser.get_data()
-        sampling_rate = parser.get_sampling_rate()
-        
-        if sampling_rate is None:
-            return None
-        
-        # JSON metadata fallback
-        json_folder = os.path.join(directory_path, "trend_data", "full")
-        json_path = os.path.join(json_folder, f"{base_name}_full.json")
-        
-        json_metadata = {}
-        if os.path.exists(json_path):
-            try:
-                with open(json_path, 'r') as f:
-                    json_metadata = json.load(f)
-            except:
-                pass
-        
-        delta_f = json_metadata.get("delta_f", 1.0)
-        overlap = json_metadata.get("overlap", 50.0)
-        window_str = json_metadata.get("window", "hanning").lower()
-        view_type_str = json_metadata.get("view_type", "ACC").upper()
-        
-        view_type_map = {"ACC": 1, "VEL": 2, "DIS": 3}
-        view_type = view_type_map.get(view_type_str, 1)
-        
-        engine = FFTEngine(
-            sampling_rate=sampling_rate,
-            delta_f=delta_f,
-            overlap=overlap,
-            window_type=window_str
-        )
-        
-        result = engine.compute(data=data, view_type=view_type, type_flag=2)
-        frequency = result['frequency']
-        spectrum = result['spectrum']
-        
-        time = np.arange(len(data)) / sampling_rate
-        
-        return {
-            'base_name': base_name,
-            'data': data,
-            'time': time,
-            'frequency': frequency,
-            'spectrum': spectrum,
-            'sampling_rate': sampling_rate,
-            'view_type': view_type
-        }
-        
-    except Exception as e:
-        print(f"File load failed: {file_path} - {e}")
-        return None
+     """
+     파일을 로드하고 FFT를 연산합니다.
+     
+     인자:
+         file_path: 파일의 전체 경로
+         directory_path: JSON 메타데이터용 기본 디렉토리
+     
+     반환:
+         data, frequency, spectrum, sampling_rate, view_type을 포함하는 딕셔너리,
+         로드 실패 시 None
+     """
+     if not os.path.exists(file_path):
+         return None
+     
+     try:
+         base_name = os.path.splitext(os.path.basename(file_path))[0]
+         
+         parser = FileParser(file_path)
+         if not parser.is_valid():
+             return None
+         
+         data = parser.get_data()
+         sampling_rate = parser.get_sampling_rate()
+         
+         if sampling_rate is None:
+             return None
+         
+         # JSON 메타데이터 대체
+         json_folder = os.path.join(directory_path, "trend_data", "full")
+         json_path = os.path.join(json_folder, f"{base_name}_full.json")
+         
+         json_metadata = {}
+         if os.path.exists(json_path):
+             try:
+                 with open(json_path, 'r') as f:
+                     json_metadata = json.load(f)
+             except:
+                 pass
+         
+         delta_f = json_metadata.get("delta_f", 1.0)
+         overlap = json_metadata.get("overlap", 50.0)
+         window_str = json_metadata.get("window", "hanning").lower()
+         view_type_str = json_metadata.get("view_type", "ACC").upper()
+         
+         view_type_map = {"ACC": 1, "VEL": 2, "DIS": 3}
+         view_type = view_type_map.get(view_type_str, 1)
+         
+         engine = FFTEngine(
+             sampling_rate=sampling_rate,
+             delta_f=delta_f,
+             overlap=overlap,
+             window_type=window_str
+         )
+         
+         result = engine.compute(data=data, view_type=view_type, type_flag=2)
+         frequency = result['frequency']
+         spectrum = result['spectrum']
+         
+         time = np.arange(len(data)) / sampling_rate
+         
+         return {
+             'base_name': base_name,
+             'data': data,
+             'time': time,
+             'frequency': frequency,
+             'spectrum': spectrum,
+             'sampling_rate': sampling_rate,
+             'view_type': view_type
+         }
+         
+     except Exception as e:
+         print(f"File load failed: {file_path} - {e}")
+         return None
 
 
 def export_spectrum_to_csv(
@@ -265,15 +235,15 @@ def export_spectrum_to_csv(
     spectrum_dict: Dict[str, np.ndarray]
 ) -> bool:
     """
-    Export spectrum data to CSV file.
+    스펙트럼 데이터를 CSV 파일로 내보냅니다.
     
-    Args:
-        save_path: Path to save CSV file
-        data_dict: Dictionary mapping filenames to (frequency, spectrum) tuples
-        spectrum_dict: Dictionary mapping filenames to spectrum arrays
+    인자:
+        save_path: CSV 파일 저장 경로
+        data_dict: 파일명을 (frequency, spectrum) 튜플에 매핑하는 딕셔너리
+        spectrum_dict: 파일명을 스펙트럼 배열에 매핑하는 딕셔너리
     
-    Returns:
-        True if successful, False otherwise
+    반환:
+        성공 시 True, 실패 시 False
     """
     if not spectrum_dict:
         return False
@@ -313,7 +283,7 @@ VIEW_LABELS = {
 
 
 def get_view_label(view_type: int) -> str:
-    """Get Y-axis label for view type."""
+    """뷰 타입에 대한 Y축 라벨을 반환합니다."""
     return VIEW_LABELS.get(view_type, "Vibration (mm/s, RMS)")
 
 

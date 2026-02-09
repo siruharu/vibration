@@ -1,4 +1,4 @@
-"""Modern splash screen for CNAVE application."""
+"""CNAVE 애플리케이션용 모던 스플래시 스크린."""
 from typing import Optional
 from pathlib import Path
 
@@ -6,7 +6,7 @@ from PyQt5 import QtCore, QtGui, QtWidgets
 
 
 class ModernSplashScreen(QtWidgets.QWidget):
-    """CNAVE application splash screen with progress tracking."""
+    """CNAVE 애플리케이션 스플래시 스크린 (진행률 추적 포함)."""
 
     def __init__(self, version: str = "v2.0.0", parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
@@ -167,7 +167,7 @@ class ModernSplashScreen(QtWidgets.QWidget):
             self.progress_timer.stop()
 
     def set_progress(self, value: int, message: Optional[str] = None):
-        """Set progress bar value and optional status message."""
+        """진행률 바 값과 선택적 상태 메시지를 설정합니다."""
         self.progress_bar.setValue(value)
         if message:
             self.status_label.setText(message)

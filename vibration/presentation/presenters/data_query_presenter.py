@@ -1,8 +1,8 @@
 """
-Data query presenter (MVP pattern).
+데이터 조회 프레젠터 (MVP 패턴).
 
-Coordinates DataQueryTabView and file_parser for file loading workflow.
-Uses constructor injection for dependencies.
+DataQueryTabView와 file_parser를 조율하여 파일 로딩 워크플로우를 처리합니다.
+생성자 주입 방식으로 의존성을 관리합니다.
 """
 import os
 import logging
@@ -19,10 +19,10 @@ logger = logging.getLogger(__name__)
 
 class DataQueryPresenter:
     """
-    Presenter for data query tab (MVP pattern).
+    데이터 조회 탭 프레젠터 (MVP 패턴).
     
-    Coordinates view and file_parser.FileParser for directory
-    selection and file loading workflow.
+    뷰와 file_parser.FileParser를 조율하여
+    디렉토리 선택 및 파일 로딩 워크플로우를 처리합니다.
     """
     
     def __init__(self, view: DataQueryTabView):

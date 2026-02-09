@@ -1,8 +1,8 @@
 """
-Trend analysis service.
+트렌드 분석 서비스.
 
-Wraps TrendParallelProcessor for batch RMS trend computation.
-NO Qt dependencies - pure Python/NumPy implementation.
+TrendParallelProcessor를 래핑하여 배치 RMS 트렌드 연산을 수행합니다.
+Qt 의존성 없음 - 순수 Python/NumPy 구현.
 """
 
 import re
@@ -26,15 +26,15 @@ VIEW_TYPE_REVERSE = {1: 'ACC', 2: 'VEL', 3: 'DIS'}
 
 class TrendService:
     """
-    Service layer for trend analysis with batch processing.
-    
-    Wraps TrendParallelProcessor and provides business logic for:
-    - Computing RMS trends across multiple files
-    - Aggregating results by channel
-    - Extracting timestamps from filenames
-    
-    Args:
-        max_workers: Number of parallel workers (default: CPU count - 1).
+    트렌드 분석과 배치 처리를 위한 서비스 레이어.
+
+    TrendParallelProcessor를 래핑하여 다음 비즈니스 로직을 제공합니다:
+    - 다중 파일에 걸친 RMS 트렌드 계산
+    - 채널별 결과 집계
+    - 파일명에서 타임스탬프 추출
+
+    인자:
+        max_workers: 병렬 워커 수 (기본값: CPU 코어 수 - 1).
     """
     
     def __init__(self, max_workers: int = None):
@@ -52,19 +52,19 @@ class TrendService:
         progress_callback: Optional[Callable[[int, int], None]] = None
     ) -> TrendResult:
         """
-        Compute RMS trend across multiple files.
-        
-        Args:
-            file_paths: List of file paths to analyze.
-            delta_f: Frequency resolution in Hz.
-            overlap: Overlap percentage (not used, for compatibility).
-            window_type: Window function ('hanning', 'flattop', 'rectangular').
-            view_type: Signal type ('ACC', 'VEL', 'DIS').
-            frequency_band: (min_freq, max_freq) band filter.
-            progress_callback: Optional callback (current, total) for progress.
-            
-        Returns:
-            TrendResult with aggregated trend data.
+        다중 파일에 걸쳐 RMS 트렌드를 계산합니다.
+
+        인자:
+            file_paths: 분석할 파일 경로 목록.
+            delta_f: 주파수 분해능 (Hz).
+            overlap: 오버랩 비율 (미사용, 호환성 유지 목적).
+            window_type: 윈도우 함수 ('hanning', 'flattop', 'rectangular').
+            view_type: 신호 유형 ('ACC', 'VEL', 'DIS').
+            frequency_band: (min_freq, max_freq) 대역 필터.
+            progress_callback: 진행률 콜백 (current, total) (선택사항).
+
+        반환:
+            집계된 트렌드 데이터가 포함된 TrendResult.
         """
         if not file_paths:
             return TrendResult(
@@ -97,7 +97,7 @@ class TrendService:
         view_type: str,
         frequency_band: Optional[Tuple[float, float]]
     ) -> TrendResult:
-        """Aggregate raw processor results into TrendResult."""
+        """원시 프로세서 결과를 TrendResult로 집계합니다."""
         success_results = [r for r in raw_results if r.success]
         
         if not success_results:
@@ -154,10 +154,10 @@ class TrendService:
     
     def _extract_timestamp(self, filename: str) -> datetime:
         """
-        Extract timestamp from filename.
-        
-        Pattern: YYYYMMDD_HHMMSS or similar.
-        Falls back to current time if parsing fails.
+        파일명에서 타임스탬프를 추출합니다.
+
+        패턴: YYYYMMDD_HHMMSS 또는 유사 형식.
+        파싱 실패 시 현재 시간으로 대체합니다.
         """
         patterns = [
             r'(\d{4})(\d{2})(\d{2})_(\d{2})(\d{2})(\d{2})',
@@ -180,13 +180,13 @@ class TrendService:
         return datetime.now()
     
     def _extract_channel(self, filename: str) -> str:
-        """Extract channel identifier from filename (typically last segment before extension)."""
+        """파일명에서 채널 식별자를 추출합니다 (일반적으로 확장자 전 마지막 세그먼트)."""
         base = Path(filename).stem
         parts = base.split('_')
         return parts[-1] if parts else '0'
     
     def get_parameters(self) -> dict:
-        """Get current processor parameters."""
+        """현재 프로세서 파라미터를 반환합니다."""
         return {
             'max_workers': self._processor.max_workers
         }

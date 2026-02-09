@@ -1,8 +1,8 @@
 """
-Base matplotlib widget for vibration analysis plots.
+진동 분석 플롯을 위한 기본 matplotlib 위젯.
 
-Provides common plotting infrastructure with FigureCanvasQTAgg,
-DPI scaling, and consistent styling across the application.
+FigureCanvasQTAgg, DPI 스케일링, 애플리케이션 전체에 걸친
+일관된 스타일링을 제공하는 공통 플로팅 인프라.
 """
 from typing import Optional, Tuple
 
@@ -15,14 +15,14 @@ import matplotlib.pyplot as plt
 
 class PlotWidget(QWidget):
     """
-    Base widget for matplotlib plots with DPI-aware scaling.
+    DPI 인식 스케일링이 적용된 matplotlib 플롯 기본 위젯.
     
-    Provides common infrastructure for all plot types including
-    figure management, canvas handling, and responsive sizing.
+    모든 플롯 유형에 대한 figure 관리, 캔버스 처리,
+    반응형 사이징을 포함하는 공통 인프라를 제공합니다.
     
-    Signals:
-        plot_clicked: Emitted when plot area is clicked (x, y)
-        plot_updated: Emitted after draw() completes
+    시그널:
+        plot_clicked: 플롯 영역 클릭 시 발행 (x, y)
+        plot_updated: draw() 완료 후 발행
     """
     
     plot_clicked = pyqtSignal(float, float)
@@ -37,12 +37,12 @@ class PlotWidget(QWidget):
         dpi: Optional[int] = None
     ):
         """
-        Initialize plot widget.
+        플롯 위젯을 초기화합니다.
         
-        Args:
-            parent: Parent widget
-            figsize: Figure size (width, height) in inches
-            dpi: Dots per inch for rendering (auto-detected if None)
+        인자:
+            parent: 부모 위젯
+            figsize: Figure 크기 (너비, 높이) 인치 단위
+            dpi: 렌더링 해상도 (None이면 자동 감지)
         """
         super().__init__(parent)
         
@@ -65,7 +65,7 @@ class PlotWidget(QWidget):
         self._apply_default_style()
     
     def _get_screen_dpi(self) -> int:
-        """Get screen DPI for scaling."""
+        """스케일링을 위한 화면 DPI를 가져옵니다."""
         try:
             screen = QApplication.primaryScreen()
             if screen:
@@ -75,7 +75,7 @@ class PlotWidget(QWidget):
         return 100
     
     def _apply_default_style(self):
-        """Apply default plot styling."""
+        """기본 플롯 스타일을 적용합니다."""
         self.axes.grid(
             True,
             alpha=self.DEFAULT_STYLE['grid_alpha'],
@@ -85,45 +85,45 @@ class PlotWidget(QWidget):
         self.axes.tick_params(labelsize=self.DEFAULT_STYLE['tick_size'])
     
     def _on_click(self, event):
-        """Handle mouse click events on canvas."""
+        """캔버스의 마우스 클릭 이벤트를 처리합니다."""
         if event.inaxes == self.axes and event.xdata is not None:
             self.plot_clicked.emit(event.xdata, event.ydata)
     
     def draw(self):
-        """Redraw the canvas."""
+        """캔버스를 다시 그립니다."""
         self.canvas.draw()
         self.plot_updated.emit()
     
     def draw_idle(self):
-        """Request redraw when idle (non-blocking)."""
+        """유휴 시 다시 그리기를 요청합니다 (비차단)."""
         self.canvas.draw_idle()
     
     def clear(self):
-        """Clear the axes and reset style."""
+        """축을 초기화하고 스타일을 재설정합니다."""
         self.axes.clear()
         self._apply_default_style()
     
     def get_axes(self):
-        """Get the matplotlib axes."""
+        """matplotlib axes를 반환합니다."""
         return self.axes
     
     def get_figure(self):
-        """Get the matplotlib figure."""
+        """matplotlib figure를 반환합니다."""
         return self.figure
     
     def get_canvas(self):
-        """Get the matplotlib canvas."""
+        """matplotlib canvas를 반환합니다."""
         return self.canvas
     
     def set_title(self, title: str, **kwargs):
-        """Set plot title with default styling."""
+        """기본 스타일링으로 플롯 제목을 설정합니다."""
         kwargs.setdefault('fontsize', self.DEFAULT_STYLE['title_size'])
         kwargs.setdefault('fontweight', 'bold')
         kwargs.setdefault('pad', 10)
         self.axes.set_title(title, **kwargs)
     
     def set_labels(self, xlabel: str = '', ylabel: str = '', **kwargs):
-        """Set axis labels with default styling."""
+        """기본 스타일링으로 축 라벨을 설정합니다."""
         kwargs.setdefault('fontsize', self.DEFAULT_STYLE['label_size'])
         if xlabel:
             self.axes.set_xlabel(xlabel, **kwargs)
@@ -131,18 +131,18 @@ class PlotWidget(QWidget):
             self.axes.set_ylabel(ylabel, **kwargs)
     
     def tight_layout(self, **kwargs):
-        """Apply tight layout to figure."""
+        """figure에 tight layout을 적용합니다."""
         kwargs.setdefault('pad', 1.0)
         self.figure.tight_layout(**kwargs)
     
     def save(self, filepath: str, dpi: int = 300, **kwargs):
         """
-        Save plot to file.
+        플롯을 파일로 저장합니다.
         
-        Args:
-            filepath: Output file path
-            dpi: Resolution for saved image
-            **kwargs: Additional savefig arguments
+        인자:
+            filepath: 출력 파일 경로
+            dpi: 저장 이미지의 해상도
+            **kwargs: 추가 savefig 인자
         """
         kwargs.setdefault('bbox_inches', 'tight')
         kwargs.setdefault('facecolor', 'white')

@@ -1,8 +1,8 @@
 """
-Trend analysis presenter (MVP pattern).
+트렌드 분석 프레젠터 (MVP 패턴).
 
-Coordinates TrendTabView and TrendService for batch trend analysis workflow.
-Uses constructor injection for dependencies - no service locator pattern.
+TrendTabView와 TrendService를 조율하여 배치 트렌드 분석 워크플로우를 처리합니다.
+생성자 주입 방식으로 의존성을 관리합니다 - 서비스 로케이터 패턴 미사용.
 """
 import logging
 import os
@@ -29,11 +29,11 @@ VIEW_TYPE_STR_TO_INT = {'ACC': 1, 'VEL': 2, 'DIS': 3}
 
 class TrendPresenter:
     """
-    Presenter for trend analysis tab (MVP pattern).
+    트렌드 분석 탭 프레젠터 (MVP 패턴).
     
-    Args:
-        view: Trend tab view instance.
-        trend_service: Trend computation service instance.
+    인자:
+        view: 트렌드 탭 뷰 인스턴스.
+        trend_service: 트렌드 연산 서비스 인스턴스.
     """
     
     def __init__(self, view: TrendTabView, trend_service: TrendService, file_service: FileService):
@@ -54,7 +54,7 @@ class TrendPresenter:
         logger.debug("TrendPresenter initialized")
     
     def _connect_signals(self):
-        """Connect view signals to presenter methods."""
+        """뷰 시그널을 프레젠터 메서드에 연결합니다."""
         self.view.compute_requested.connect(self._on_compute_requested)
         self.view.load_data_requested.connect(self._on_load_data_requested)
         self.view.save_requested.connect(self._on_save_requested)
@@ -63,16 +63,16 @@ class TrendPresenter:
     
     def load_files(self, file_paths: List[str]) -> None:
         """
-        Load files for trend analysis.
+        트렌드 분석을 위한 파일을 로드합니다.
         
-        Args:
-            file_paths: List of file paths to analyze.
+        인자:
+            file_paths: 분석할 파일 경로 목록.
         """
         self._file_paths = list(file_paths)
         logger.info(f"Loaded {len(file_paths)} files for trend analysis")
     
     def _on_compute_requested(self) -> None:
-        """Handle Calculation & Plot button click."""
+        """연산 및 플롯 버튼 클릭 처리."""
         if not self._directory_path:
             logger.warning("No directory selected")
             return
@@ -130,12 +130,12 @@ class TrendPresenter:
             progress_dialog.close()
     
     def _on_load_data_requested(self) -> None:
-        """Handle Load Data & Plot button click."""
+        """데이터 로드 및 플롯 버튼 클릭 처리."""
         logger.debug("Load data requested - same as compute for now")
         self._on_compute_requested()
     
     def _on_save_requested(self) -> None:
-        """Handle Data Extraction button click."""
+        """데이터 추출 버튼 클릭 처리."""
         if not self._last_result:
             logger.warning("No data to save")
             return
@@ -143,10 +143,10 @@ class TrendPresenter:
     
     def _update_view_with_result(self, result: TrendResult) -> None:
         """
-        Update view with trend result.
+        트렌드 결과로 뷰를 업데이트합니다.
         
-        Args:
-            result: TrendResult from service.
+        인자:
+            result: 서비스에서 반환된 TrendResult.
         """
         if not result.channel_data:
             logger.warning("No channel data in result")
@@ -170,10 +170,10 @@ class TrendPresenter:
     
     def _on_view_type_changed(self, view_type_int: int) -> None:
         """
-        Handle view type change (ACC/VEL/DIS).
+        뷰 타입 변경 처리 (ACC/VEL/DIS).
         
-        Args:
-            view_type_int: View type as integer (1=ACC, 2=VEL, 3=DIS).
+        인자:
+            view_type_int: 정수형 뷰 타입 (1=ACC, 2=VEL, 3=DIS).
         """
         view_type_str = VIEW_TYPE_INT_TO_STR.get(view_type_int, 'ACC')
         
@@ -199,11 +199,11 @@ class TrendPresenter:
     
     def _on_list_save_requested(self, channel_files: dict, directory_path: str) -> None:
         """
-        Handle List Save button click - Open Detail Analysis dialog.
+        리스트 저장 버튼 클릭 처리 - 상세 분석 다이얼로그를 엽니다.
         
-        Args:
-            channel_files: Dictionary mapping channel names to file lists
-            directory_path: Directory containing the files
+        인자:
+            channel_files: 채널 이름을 파일 목록에 매핑하는 딕셔너리
+            directory_path: 파일이 위치한 디렉토리
         """
         try:
             dialog = ListSaveDialog(
@@ -225,11 +225,11 @@ class TrendPresenter:
     
     def _on_frequency_band_changed(self, min_freq: float, max_freq: float) -> None:
         """
-        Handle frequency band change.
+        주파수 대역 변경 처리.
         
-        Args:
-            min_freq: Minimum frequency in Hz.
-            max_freq: Maximum frequency in Hz.
+        인자:
+            min_freq: 최소 주파수 (Hz).
+            max_freq: 최대 주파수 (Hz).
         """
         logger.debug(f"Frequency band changed to {min_freq}-{max_freq} Hz")
         
@@ -237,19 +237,19 @@ class TrendPresenter:
             self._on_compute_requested()
     
     def get_last_result(self) -> Optional[TrendResult]:
-        """Get result from last computation."""
+        """마지막 연산 결과를 반환합니다."""
         return self._last_result
     
     def get_current_view_type(self) -> str:
-        """Get current view type as string."""
+        """현재 뷰 타입을 문자열로 반환합니다."""
         return self._current_view_type
     
     def has_data(self) -> bool:
-        """Check if files are loaded."""
+        """파일 로드 여부를 확인합니다."""
         return bool(self._file_paths)
     
     def get_file_count(self) -> int:
-        """Get number of loaded files."""
+        """로드된 파일 수를 반환합니다."""
         return len(self._file_paths)
     
     def _on_files_loaded(self, files: List[str]) -> None:

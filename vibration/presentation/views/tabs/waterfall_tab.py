@@ -1,8 +1,8 @@
 """
-Waterfall analysis tab view - exact replication of legacy tab_2.
+워터폴 분석 탭 뷰 - 레거시 tab_2의 정확한 복제.
 
-Matches cn_3F_trend_optimized.py lines 2009-2350 for pixel-perfect UI compatibility.
-Displays time-frequency waterfall 3D plot with FFT options and axis controls.
+cn_3F_trend_optimized.py 2009-2350 라인과 동일한 픽셀 완벽 UI 호환.
+FFT 옵션과 축 컨트롤이 포함된 시간-주파수 워터폴 3D 플롯을 표시합니다.
 """
 from typing import Optional, List
 
@@ -29,18 +29,18 @@ VIEW_TYPE_LABELS = {
 
 class WaterfallTabView(QWidget):
     """
-    View for waterfall analysis tab - exact legacy replication.
+    워터폴 분석 탭 뷰 - 레거시 정확 복제.
     
-    Layout structure matches legacy tab_2:
-    - Left: 6 channel checkboxes (checkBox_7-12), Select All/Deselect All, file list (Querry_list2)
-    - Middle: FFT options (Δf, Window, Overlap, Convert, Angle), Plot Waterfall button
-    - Right: X/Z axis controls (Auto checkboxes, Min/Max inputs, Set/Auto Scale buttons)
-    - Bottom: Matplotlib figure for waterfall 3D plot
+    레거시 tab_2 레이아웃 구조:
+    - 좌측: 6개 채널 체크박스 (checkBox_7-12), Select All/Deselect All, 파일 목록 (Querry_list2)
+    - 중앙: FFT 옵션 (Δf, Window, Overlap, Convert, Angle), Plot Waterfall 버튼
+    - 우측: X/Z 축 컨트롤 (Auto 체크박스, Min/Max 입력, Set/Auto Scale 버튼)
+    - 하단: 워터폴 3D 플롯용 Matplotlib figure
     
-    Emits signals for presenter to handle computation.
+    연산 처리를 위해 프레젠터에 시그널을 발행합니다.
     """
     
-    # Signals for presenter
+    # 프레젠터용 시그널
     compute_requested = pyqtSignal(bool)  # force_recalculate flag
     set_x_axis_requested = pyqtSignal()
     set_z_axis_requested = pyqtSignal()
@@ -50,17 +50,17 @@ class WaterfallTabView(QWidget):
     channel_filter_changed = pyqtSignal()
     
     def __init__(self, parent: Optional[QWidget] = None):
-        """Initialize waterfall tab view."""
+        """워터폴 탭 뷰를 초기화합니다."""
         super().__init__(parent)
         self._all_files: List[str] = []
         self._setup_ui()
         self._connect_signals()
     
     def _setup_ui(self):
-        """Setup UI layout matching legacy tab_2 exactly."""
+        """레거시 tab_2와 정확히 일치하는 UI 레이아웃을 설정합니다."""
         self.tab2_layout = QGridLayout(self)
         
-        # Create main sections
+        # 메인 섹션 생성
         self._create_left_panel()
         self._create_middle_panel()
         self._create_right_panel()
@@ -72,12 +72,12 @@ class WaterfallTabView(QWidget):
         self.tab2_layout.addLayout(self.waterfall_graph_layout, 1, 1, 1, 8, Qt.AlignmentFlag.AlignLeft)
         
         self.tab2_layout.setColumnStretch(1, 4)
-    
+     
     def _create_left_panel(self):
-        """Create left panel with checkboxes, buttons, and file list."""
+        """체크박스, 버튼, 파일 목록이 포함된 좌측 패널을 생성합니다."""
         self.data2_listlayout = QVBoxLayout()
         
-        # Channel checkboxes - exact legacy naming: checkBox_7 to checkBox_12
+        # 채널 체크박스 - 레거시 명명 그대로
         self.checkboxs_layout = QGridLayout()
         
         self.checkBox_7 = QCheckBox("1CH")
@@ -104,7 +104,7 @@ class WaterfallTabView(QWidget):
         self.checkBox_12.setObjectName("checkBox_12")
         self.checkboxs_layout.addWidget(self.checkBox_12, 1, 2)
         
-        # Select All / Deselect All buttons
+        # 전체 선택 / 전체 해제 버튼
         self.button2_leftlayout = QHBoxLayout()
         
         self.select_all_btn2 = QPushButton("Select All")
@@ -115,7 +115,7 @@ class WaterfallTabView(QWidget):
         self.deselect_all_btn2.setObjectName("deselect_all_btn")
         self.button2_leftlayout.addWidget(self.deselect_all_btn2)
         
-        # File list - exact legacy naming: Querry_list2
+        # 파일 목록 - 레거시 명명 그대로
         self.Qurry_layout2 = QHBoxLayout()
         self.Querry_list2 = QListWidget()
         self.Querry_list2.setObjectName("Querry_list2")
@@ -125,20 +125,20 @@ class WaterfallTabView(QWidget):
         self.Querry_list2.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.Qurry_layout2.addWidget(self.Querry_list2)
         
-        # Combine into data layout
+        # 데이터 레이아웃으로 결합
         self.data2_listlayout.addLayout(self.checkboxs_layout)
         self.data2_listlayout.addLayout(self.button2_leftlayout)
         self.data2_listlayout.addLayout(self.Qurry_layout2)
         
-        # Alias for consistency with other tabs
+        # 다른 탭과의 일관성을 위한 별칭
         self.file_list = self.Querry_list2
     
     def _create_middle_panel(self):
-        """Create middle panel with FFT options and Plot Waterfall button."""
+        """FFT 옵션과 Plot Waterfall 버튼이 포함된 중앙 패널을 생성합니다."""
         self.left_layout = QGridLayout()
         self.options2_layout = QGridLayout()
         
-        # FFT Options label
+        # FFT 옵션 라벨
         self.Plot_Options_2 = QTextBrowser()
         self.Plot_Options_2.setMaximumSize(129, 27)
         self.Plot_Options_2.setObjectName("Plot_Options_2")
@@ -231,7 +231,7 @@ class WaterfallTabView(QWidget):
         self.plot_waterfall_button.setMaximumSize(129, 27)
         self.options2_layout.addWidget(self.plot_waterfall_button)
         
-        # Layout settings
+        # 레이아웃 설정
         self.options2_layout.setContentsMargins(0, 0, 0, 0)
         self.options2_layout.setSpacing(0)
         self.options2_layout.setRowStretch(0, 1)
@@ -240,17 +240,17 @@ class WaterfallTabView(QWidget):
         
         self.left_layout.addLayout(self.options2_layout, 1, 0, 1, 1)
         
-        # Aliases for consistency
+        # 일관성을 위한 별칭
         self.delta_f_input = self.Hz_2
         self.window_combo = self.Function_2
         self.overlap_combo = self.Overlap_Factor_2
         self.view_type_combo = self.select_pytpe2
     
     def _create_right_panel(self):
-        """Create right panel with X/Z axis scale controls."""
+        """X/Z 축 스케일 컨트롤이 포함된 우측 패널을 생성합니다."""
         self.waterfall_scale_layout = QVBoxLayout()
         
-        # X axis controls
+        # X축 컨트롤
         self.x_scale_layout = QHBoxLayout()
         self.x_scale_layout2 = QHBoxLayout()
         
@@ -280,7 +280,7 @@ class WaterfallTabView(QWidget):
         self.water_x_set.setMaximumSize(70, 31)
         self.x_scale_layout2.addWidget(self.water_x_set)
         
-        # Z axis controls
+        # Z축 컨트롤
         self.z_scale_layout = QHBoxLayout()
         self.z_scale_layout2 = QHBoxLayout()
         
@@ -310,14 +310,14 @@ class WaterfallTabView(QWidget):
         self.water_z_set.setMaximumSize(70, 31)
         self.z_scale_layout2.addWidget(self.water_z_set)
         
-        # Add all scale layouts
+        # 모든 스케일 레이아웃 추가
         self.waterfall_scale_layout.addLayout(self.x_scale_layout)
         self.waterfall_scale_layout.addLayout(self.x_scale_layout2)
         self.waterfall_scale_layout.addLayout(self.z_scale_layout)
         self.waterfall_scale_layout.addLayout(self.z_scale_layout2)
     
     def _create_plot_area(self):
-        """Create matplotlib figure for waterfall 3D plot."""
+        """워터폴 3D 플롯용 matplotlib figure를 생성합니다."""
         self.waterfall_graph_layout = QVBoxLayout()
         
         screen: Optional[QScreen] = QApplication.primaryScreen()
@@ -331,24 +331,24 @@ class WaterfallTabView(QWidget):
         self.waterfall_graph_layout.addWidget(self.waterfall_canvas)
     
     def _connect_signals(self):
-        """Connect button signals to view signals for presenter."""
-        # Plot button - force recalculate
+        """프레젠터를 위해 버튼 시그널을 뷰 시그널에 연결합니다."""
+        # 플롯 버튼 - 강제 재계산
         self.plot_waterfall_button.clicked.connect(lambda: self.compute_requested.emit(True))
         
-        # Axis controls
+        # 축 컨트롤
         self.water_x_set.clicked.connect(self.set_x_axis_requested.emit)
         self.water_z_set.clicked.connect(self.set_z_axis_requested.emit)
         self.water_x_autoscale.clicked.connect(self.auto_scale_x_requested.emit)
         self.water_z_autoscale.clicked.connect(self.auto_scale_z_requested.emit)
         
-        # Angle input - emit on Enter
+        # 각도 입력 - Enter 시 발행
         self.angle_input.returnPressed.connect(self.angle_changed.emit)
         
-        # Select All / Deselect All buttons
+        # 전체 선택 / 전체 해제 버튼
         self.select_all_btn2.clicked.connect(self.Querry_list2.selectAll)
         self.deselect_all_btn2.clicked.connect(self.Querry_list2.clearSelection)
         
-        # Channel checkboxes - filter file list
+        # 채널 체크박스 - 파일 목록 필터
         self.checkBox_7.stateChanged.connect(self._on_channel_filter_changed)
         self.checkBox_8.stateChanged.connect(self._on_channel_filter_changed)
         self.checkBox_9.stateChanged.connect(self._on_channel_filter_changed)
@@ -357,16 +357,16 @@ class WaterfallTabView(QWidget):
         self.checkBox_12.stateChanged.connect(self._on_channel_filter_changed)
     
     def _on_channel_filter_changed(self):
-        """Handle channel checkbox state change - filter file list."""
+        """채널 체크박스 상태 변경을 처리 - 파일 목록을 필터링합니다."""
         self._update_filtered_file_list()
         self.channel_filter_changed.emit()
     
     def _update_filtered_file_list(self):
-        """Update file list based on selected channel checkboxes."""
+        """선택된 채널 체크박스에 따라 파일 목록을 업데이트합니다."""
         if not self._all_files:
             return
         
-        # Get selected channels
+        # 선택된 채널 가져오기
         selected_channels = []
         checkboxes = [
             self.checkBox_7, self.checkBox_8, self.checkBox_9,
@@ -376,13 +376,13 @@ class WaterfallTabView(QWidget):
             if checkbox.isChecked():
                 selected_channels.append(str(idx))
         
-        # If no channels selected, show all files
+        # 채널 미선택 시 전체 파일 표시
         if not selected_channels:
             self.Querry_list2.clear()
             self.Querry_list2.addItems(self._all_files)
             return
         
-        # Filter files by selected channels
+        # 선택된 채널로 파일 필터링
         filtered_files = [
             f for f in self._all_files
             if any(f.endswith(f"_{ch}.txt") for ch in selected_channels)
@@ -392,7 +392,7 @@ class WaterfallTabView(QWidget):
         self.Querry_list2.addItems(filtered_files)
     
     def get_parameters(self) -> dict[str, object]:
-        """Get current FFT parameters from UI inputs."""
+        """UI 입력에서 현재 FFT 파라미터를 가져옵니다."""
         try:
             delta_f = float(self.Hz_2.toPlainText().strip())
         except (ValueError, AttributeError):
@@ -412,7 +412,7 @@ class WaterfallTabView(QWidget):
         }
     
     def get_x_axis_limits(self) -> Tuple[Optional[float], Optional[float]]:
-        """Get X axis limits from inputs."""
+        """입력에서 X축 범위를 가져옵니다."""
         try:
             x_min = float(self.x_min_input2.text())
             x_max = float(self.x_max_input2.text())
@@ -423,7 +423,7 @@ class WaterfallTabView(QWidget):
             return None, None
     
     def get_z_axis_limits(self) -> Tuple[Optional[float], Optional[float]]:
-        """Get Z axis limits from inputs."""
+        """입력에서 Z축 범위를 가져옵니다."""
         try:
             z_min = float(self.z_min_input.text())
             z_max = float(self.z_max_input.text())
@@ -434,41 +434,41 @@ class WaterfallTabView(QWidget):
             return None, None
     
     def set_auto_x_checked(self, checked: bool):
-        """Set auto X checkbox state."""
+        """Auto X 체크박스 상태를 설정합니다."""
         self.auto_scale_x_2.setChecked(checked)
     
     def set_auto_z_checked(self, checked: bool):
-        """Set auto Z checkbox state."""
+        """Auto Z 체크박스 상태를 설정합니다."""
         self.auto_scale_z.setChecked(checked)
     
     def clear_plot(self):
-        """Clear the waterfall plot."""
+        """워터폴 플롯을 초기화합니다."""
         self.waterfall_ax.clear()
         self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=7)
         self.waterfall_canvas.draw()
     
     def set_files(self, files: List[str]):
-        """Update file list from Data Query tab."""
+        """Data Query 탭에서 파일 목록을 업데이트합니다."""
         self._all_files = files.copy()
         self.Querry_list2.clear()
         self.Querry_list2.addItems(files)
     
     def get_selected_files(self) -> List[str]:
-        """Get currently selected files from list."""
+        """현재 선택된 파일 목록을 반환합니다."""
         return [item.text() for item in self.Querry_list2.selectedItems()]
     
     def get_figure(self) -> Figure:
-        """Get matplotlib figure for direct plotting."""
+        """직접 플로팅을 위한 matplotlib figure를 반환합니다."""
         return self.waterfall_figure
     
     def get_axes(self):
-        """Get matplotlib axes for direct plotting."""
+        """직접 플로팅을 위한 matplotlib axes를 반환합니다."""
         return self.waterfall_ax
     
     def set_axes(self, ax):
-        """Set matplotlib axes reference after clearing figure."""
+        """figure 초기화 후 matplotlib axes 참조를 설정합니다."""
         self.waterfall_ax = ax
     
     def draw(self):
-        """Redraw the canvas."""
+        """캔버스를 다시 그립니다."""
         self.waterfall_canvas.draw()

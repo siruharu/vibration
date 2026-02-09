@@ -1,8 +1,8 @@
 """
-Application factory and entry point.
+애플리케이션 팩토리 및 진입점.
 
-Wires all dependencies using constructor injection.
-No service locator pattern - all dependencies explicitly passed.
+생성자 주입을 사용하여 모든 의존성을 연결합니다.
+서비스 로케이터 패턴 미사용 - 모든 의존성을 명시적으로 전달합니다.
 """
 import sys
 import logging
@@ -27,7 +27,7 @@ logger = logging.getLogger(__name__)
 
 
 class ApplicationFactory:
-    """Factory for creating application with wired dependencies using constructor injection."""
+    """생성자 주입을 사용하여 의존성을 연결하는 애플리케이션 팩토리."""
     
     DEFAULT_SAMPLING_RATE = 10240.0
     DEFAULT_DELTA_F = 1.0
@@ -120,7 +120,7 @@ class ApplicationFactory:
 
 
 def main():
-    """Main entry point for the application."""
+    """애플리케이션의 메인 진입점."""
     import sys
     
     app = QApplication.instance()

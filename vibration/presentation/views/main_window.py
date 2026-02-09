@@ -1,8 +1,8 @@
 """
-Main application window (thin shell).
+메인 애플리케이션 윈도우 (씬 셸).
 
-Coordinates tab views and delegates all business logic to presenters.
-Keeps UI state minimal - presenters handle data flow.
+탭 뷰를 조율하고 모든 비즈니스 로직을 프레젠터에 위임합니다.
+UI 상태를 최소화 - 프레젠터가 데이터 흐름을 처리합니다.
 """
 from typing import Optional, Dict, Any
 from pathlib import Path
@@ -25,17 +25,17 @@ from vibration.presentation.views.tabs import (
 
 class MainWindow(QMainWindow):
     """
-    Main application window - thin shell pattern.
+    메인 애플리케이션 윈도우 - 씬 셸 패턴.
     
-    Responsibilities:
-    - Window chrome (title, size, icon)
-    - Tab widget management
-    - Menu/status bar structure
+    역할:
+    - 윈도우 크롬 (타이틀, 크기, 아이콘)
+    - 탭 위젯 관리
+    - 메뉴/상태바 구조
     
-    NOT responsible for:
-    - Business logic (delegated to presenters)
-    - Data management (handled by services)
-    - Complex UI state (managed by tab views)
+    역할 아님:
+    - 비즈니스 로직 (프레젠터에 위임)
+    - 데이터 관리 (서비스가 처리)
+    - 복잡한 UI 상태 (탭 뷰가 관리)
     """
     
     app_closing = pyqtSignal()
@@ -48,7 +48,7 @@ class MainWindow(QMainWindow):
     TAB_PEAK = 'peak'
     
     def __init__(self, parent: Optional[QWidget] = None):
-        """Initialize main window."""
+        """메인 윈도우를 초기화합니다."""
         super().__init__(parent)
         self._tabs: Dict[str, QWidget] = {}
         
@@ -60,7 +60,7 @@ class MainWindow(QMainWindow):
         self._connect_signals()
     
     def _setup_window(self):
-        """Configure window properties."""
+        """윈도우 속성을 설정합니다."""
         self.setWindowTitle("CNAVE Vibration Analyzer")
         self.setMinimumSize(1920, 1027)
         self.resize(1920, 1080)
@@ -73,7 +73,7 @@ class MainWindow(QMainWindow):
             self.setWindowIcon(QIcon(str(icon_path)))
     
     def _create_central_widget(self):
-        """Create central widget with layout."""
+        """레이아웃이 포함된 중앙 위젯을 생성합니다."""
         self._central_widget = QWidget()
         self.setCentralWidget(self._central_widget)
         
@@ -81,7 +81,7 @@ class MainWindow(QMainWindow):
         self._main_layout.setContentsMargins(0, 0, 0, 0)
     
     def _create_tabs(self):
-        """Create tab widget with all tabs."""
+        """모든 탭이 포함된 탭 위젯을 생성합니다."""
         self.tab_widget = QTabWidget()
         self._main_layout.addWidget(self.tab_widget)
         
@@ -106,7 +106,7 @@ class MainWindow(QMainWindow):
         self.tab_widget.addTab(self.waterfall_tab, "Waterfall")
     
     def _create_menu_bar(self):
-        """Create menu bar structure."""
+        """메뉴바 구조를 생성합니다."""
         self._menu_bar = QMenuBar(self)
         self.setMenuBar(self._menu_bar)
         
@@ -126,17 +126,17 @@ class MainWindow(QMainWindow):
         self._help_menu.addAction(self._about_action)
     
     def _create_status_bar(self):
-        """Create status bar."""
+        """상태바를 생성합니다."""
         self._status_bar = QStatusBar(self)
         self.setStatusBar(self._status_bar)
         self._status_bar.showMessage("Ready")
     
     def _connect_signals(self):
-        """Connect internal signals."""
+        """내부 시그널을 연결합니다."""
         self.tab_widget.currentChanged.connect(self._on_tab_changed)
     
     def _on_tab_changed(self, index: int):
-        """Handle tab change event."""
+        """탭 변경 이벤트를 처리합니다."""
         tab_names = [
             self.TAB_DATA_QUERY,
             self.TAB_SPECTRUM,
@@ -149,25 +149,25 @@ class MainWindow(QMainWindow):
     
     def get_tab(self, name: str) -> Optional[QWidget]:
         """
-        Get tab view by name.
+        이름으로 탭 뷰를 가져옵니다.
         
-        Args:
-            name: Tab name constant (TAB_DATA_QUERY, etc.)
+        인자:
+            name: 탭 이름 상수 (TAB_DATA_QUERY 등)
             
-        Returns:
-            Tab view widget or None if not found
+        반환:
+            탭 뷰 위젯 또는 찾지 못한 경우 None
         """
         return self._tabs.get(name)
     
     def set_current_tab(self, name: str) -> bool:
         """
-        Switch to specified tab.
+        지정된 탭으로 전환합니다.
         
-        Args:
-            name: Tab name constant
+        인자:
+            name: 탭 이름 상수
             
-        Returns:
-            True if tab found and switched, False otherwise
+        반환:
+            탭을 찾아 전환한 경우 True, 아닌 경우 False
         """
         tab = self._tabs.get(name)
         if tab:
@@ -176,7 +176,7 @@ class MainWindow(QMainWindow):
         return False
     
     def get_current_tab_name(self) -> str:
-        """Get name of current tab."""
+        """현재 탭의 이름을 반환합니다."""
         current_widget = self.tab_widget.currentWidget()
         for name, tab in self._tabs.items():
             if tab is current_widget:
@@ -185,21 +185,21 @@ class MainWindow(QMainWindow):
     
     def set_status_message(self, message: str, timeout: int = 0):
         """
-        Set status bar message.
+        상태바 메시지를 설정합니다.
         
-        Args:
-            message: Message to display
-            timeout: Timeout in ms (0 = permanent)
+        인자:
+            message: 표시할 메시지
+            timeout: 타임아웃 (ms, 0 = 영구)
         """
         self._status_bar.showMessage(message, timeout)
     
     def add_menu_action(self, menu_name: str, action: QAction):
         """
-        Add action to specified menu.
+        지정된 메뉴에 액션을 추가합니다.
         
-        Args:
-            menu_name: 'file', 'view', or 'help'
-            action: Action to add
+        인자:
+            menu_name: 'file', 'view' 또는 'help'
+            action: 추가할 액션
         """
         menus = {
             'file': self._file_menu,
@@ -211,7 +211,7 @@ class MainWindow(QMainWindow):
             menu.addAction(action)
     
     def closeEvent(self, event):
-        """Handle window close event."""
+        """윈도우 닫기 이벤트를 처리합니다."""
         self.app_closing.emit()
         super().closeEvent(event)
 

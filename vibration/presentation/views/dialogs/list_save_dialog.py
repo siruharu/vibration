@@ -1,13 +1,13 @@
 """
-Detailed analysis dialog for individual file inspection.
+개별 파일 검사를 위한 상세 분석 다이얼로그.
 
-Provides FFT analysis, time-domain plotting, and data export capabilities.
-Extracted from cn_3F_trend_optimized.py for modular architecture.
+FFT 분석, 시간 영역 플롯, 데이터 내보내기 기능을 제공합니다.
+cn_3F_trend_optimized.py에서 모듈화 아키텍처를 위해 추출.
 
-Dependencies:
-- file_parser.FileParser: File loading
-- fft_engine.FFTEngine: FFT computation
-- responsive_layout_utils.ResponsiveLayoutMixin: DPI scaling
+의존성:
+- file_parser.FileParser: 파일 로딩
+- fft_engine.FFTEngine: FFT 연산
+- responsive_layout_utils.ResponsiveLayoutMixin: DPI 스케일링
 """
 
 import os
@@ -52,14 +52,14 @@ except ImportError:
 
 class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
     """
-    Detail Analysis dialog for file inspection and FFT analysis.
+    파일 검사 및 FFT 분석을 위한 상세 분석 다이얼로그.
     
-    Displays waveform and spectrum plots for selected files with interactive
-    picking, axis scaling, and CSV export functionality.
+    선택된 파일에 대한 파형 및 스펙트럼 플롯을 대화형 피킹,
+    축 스케일링, CSV 내보내기 기능과 함께 표시합니다.
     
-    Attributes:
-        channel_files: Dictionary mapping channel names to file lists
-        directory_path: Base directory containing the files
+    속성:
+        channel_files: 채널 이름을 파일 목록에 매핑하는 딕셔너리
+        directory_path: 파일이 위치한 기본 디렉토리
     """
 
     def __init__(self, channel_files: dict = None, parent=None, 

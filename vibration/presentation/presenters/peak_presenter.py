@@ -1,8 +1,8 @@
 """
-Peak analysis presenter (MVP pattern).
+피크 분석 프레젠터 (MVP 패턴).
 
-Coordinates PeakTabView and PeakService for batch peak analysis workflow.
-Uses constructor injection for dependencies - no service locator pattern.
+PeakTabView와 PeakService를 조율하여 배치 피크 분석 워크플로우를 처리합니다.
+생성자 주입 방식으로 의존성을 관리합니다 - 서비스 로케이터 패턴 미사용.
 """
 import logging
 import sys
@@ -29,12 +29,12 @@ VIEW_TYPE_STR_TO_INT = {'ACC': 1, 'VEL': 2, 'DIS': 3}
 
 class PeakPresenter:
     """
-    Presenter for peak analysis tab (MVP pattern).
+    피크 분석 탭 프레젠터 (MVP 패턴).
     
-    Args:
-        view: Peak tab view instance.
-        peak_service: Peak computation service instance.
-        file_service: File operations service instance.
+    인자:
+        view: 피크 탭 뷰 인스턴스.
+        peak_service: 피크 연산 서비스 인스턴스.
+        file_service: 파일 작업 서비스 인스턴스.
     """
     
     def __init__(self, view: PeakTabView, peak_service: PeakService, file_service: FileService):

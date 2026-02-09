@@ -1,4 +1,4 @@
-"""Marker management for interactive plots with mouse/keyboard handling."""
+"""마우스/키보드 처리가 포함된 대화형 플롯용 마커 관리."""
 from typing import Optional, List, Tuple, Any, Callable, Union
 from enum import Enum
 import numpy as np
@@ -13,7 +13,7 @@ class MarkerType(Enum):
 
 
 class MarkerManager(QObject):
-    """Manages interactive markers: hover tracking, click placement, multiple marker types."""
+    """대화형 마커 관리: 호버 추적, 클릭 배치, 다중 마커 유형."""
     
     marker_added = pyqtSignal(float, float, str)
     marker_cleared = pyqtSignal()

@@ -1,8 +1,8 @@
 """
-File loading and management service.
+파일 로딩 및 관리 서비스.
 
-Wraps FileParser for directory scanning and file metadata extraction.
-NO Qt dependencies - pure Python implementation.
+FileParser를 래핑하여 디렉토리 스캔 및 파일 메타데이터 추출을 수행합니다.
+Qt 의존성 없음 - 순수 Python 구현.
 """
 
 import os
@@ -17,10 +17,9 @@ from vibration.core.domain.models import FileMetadata
 
 class FileService:
     """
-    Service layer for file loading and management.
-    
-    Provides directory scanning, file parsing, and sensitivity management
-    without Qt dependencies.
+    파일 로딩 및 관리를 위한 서비스 레이어.
+
+    Qt 의존성 없이 디렉토리 스캔, 파일 파싱, 감도 관리 기능을 제공합니다.
     """
     
     def __init__(self):
@@ -34,14 +33,14 @@ class FileService:
         pattern: str = "*.txt"
     ) -> List[FileMetadata]:
         """
-        Scan directory for files matching pattern.
-        
-        Args:
-            directory: Directory path to scan.
-            pattern: Glob pattern for file matching.
-            
-        Returns:
-            List of FileMetadata objects sorted by filename.
+        패턴에 맞는 파일을 디렉토리에서 스캔합니다.
+
+        인자:
+            directory: 스캔할 디렉토리 경로.
+            pattern: 파일 매칭을 위한 Glob 패턴.
+
+        반환:
+            파일명 기준으로 정렬된 FileMetadata 객체 목록.
         """
         path = Path(directory)
         if not path.exists() or not path.is_dir():
@@ -61,17 +60,17 @@ class FileService:
         pattern: str = "*.txt"
     ) -> Dict[Tuple[str, str], List[str]]:
         """
-        Scan directory and group files by date/time pattern.
-        
-        Parses filenames with format: YYYY-MM-DD_HH-MM-SS_*.txt
-        and groups them by (date, time).
-        
-        Args:
-            directory: Directory path to scan.
-            pattern: Glob pattern for file matching.
-            
-        Returns:
-            Dictionary mapping (date, time) tuples to lists of filenames.
+        디렉토리를 스캔하고 날짜/시간 패턴별로 파일을 그룹화합니다.
+
+        YYYY-MM-DD_HH-MM-SS_*.txt 형식의 파일명을 파싱하여
+        (날짜, 시간) 기준으로 그룹화합니다.
+
+        인자:
+            directory: 스캔할 디렉토리 경로.
+            pattern: 파일 매칭을 위한 Glob 패턴.
+
+        반환:
+            (날짜, 시간) 튜플을 파일명 목록에 매핑하는 딕셔너리.
         """
         path = Path(directory)
         if not path.exists() or not path.is_dir():
@@ -103,13 +102,13 @@ class FileService:
     
     def load_file(self, filepath: str) -> Dict[str, Any]:
         """
-        Load file data using FileParser.
-        
-        Args:
-            filepath: Path to file.
-            
-        Returns:
-            Dictionary with data, sampling_rate, metadata, and validity.
+        FileParser를 사용하여 파일 데이터를 로드합니다.
+
+        인자:
+            filepath: 파일 경로.
+
+        반환:
+            data, sampling_rate, metadata, validity를 포함하는 딕셔너리.
         """
         parser = FileParser(filepath)
         self._file_cache[filepath] = parser
@@ -124,13 +123,13 @@ class FileService:
     
     def load_file_data(self, filepath: str) -> Optional[Any]:
         """
-        Load only the signal data from file.
-        
-        Args:
-            filepath: Path to file.
-            
-        Returns:
-            NumPy array of signal data or None if invalid.
+        파일에서 신호 데이터만 로드합니다.
+
+        인자:
+            filepath: 파일 경로.
+
+        반환:
+            신호 데이터의 NumPy 배열 또는 유효하지 않은 경우 None.
         """
         result = self.load_file(filepath)
         if result['is_valid']:
@@ -139,30 +138,30 @@ class FileService:
     
     def get_file_metadata(self, filepath: str) -> FileMetadata:
         """
-        Get metadata for a specific file.
-        
-        Args:
-            filepath: Path to file.
-            
-        Returns:
-            FileMetadata object with file information.
+        특정 파일의 메타데이터를 가져옵니다.
+
+        인자:
+            filepath: 파일 경로.
+
+        반환:
+            파일 정보가 포함된 FileMetadata 객체.
         """
         return self._extract_metadata(Path(filepath))
     
     def set_sensitivity(self, filename: str, sensitivity: float) -> None:
-        """Set sensitivity value for a file."""
+        """파일의 감도 값을 설정합니다."""
         self._sensitivity_map[filename] = sensitivity
     
     def get_sensitivity(self, filename: str) -> Optional[float]:
-        """Get sensitivity value for a file."""
+        """파일의 감도 값을 가져옵니다."""
         return self._sensitivity_map.get(filename)
     
     def set_b_sensitivity(self, filename: str, b_sensitivity: float) -> None:
-        """Set B-weighting sensitivity for a file."""
+        """파일의 B 가중 감도를 설정합니다."""
         self._b_sensitivity_map[filename] = b_sensitivity
     
     def get_b_sensitivity(self, filename: str) -> Optional[float]:
-        """Get B-weighting sensitivity for a file."""
+        """파일의 B 가중 감도를 가져옵니다."""
         return self._b_sensitivity_map.get(filename)
     
     def set_sensitivities(
@@ -171,30 +170,30 @@ class FileService:
         sensitivity: Optional[float] = None,
         b_sensitivity: Optional[float] = None
     ) -> None:
-        """Set both sensitivity values for a file."""
+        """파일의 두 감도 값을 모두 설정합니다."""
         if sensitivity is not None:
             self._sensitivity_map[filename] = sensitivity
         if b_sensitivity is not None:
             self._b_sensitivity_map[filename] = b_sensitivity
     
     def get_sensitivities(self, filename: str) -> Dict[str, Optional[float]]:
-        """Get both sensitivity values for a file."""
+        """파일의 두 감도 값을 모두 가져옵니다."""
         return {
             'sensitivity': self._sensitivity_map.get(filename),
             'b_sensitivity': self._b_sensitivity_map.get(filename)
         }
     
     def clear_sensitivity_cache(self) -> None:
-        """Clear all cached sensitivity values."""
+        """캐시된 모든 감도 값을 초기화합니다."""
         self._sensitivity_map.clear()
         self._b_sensitivity_map.clear()
     
     def clear_file_cache(self) -> None:
-        """Clear all cached file parsers."""
+        """캐시된 모든 파일 파서를 초기화합니다."""
         self._file_cache.clear()
     
     def _extract_metadata(self, file_path: Path) -> FileMetadata:
-        """Extract metadata from file path and contents."""
+        """파일 경로와 내용에서 메타데이터를 추출합니다."""
         stat = file_path.stat()
         
         mod_time = datetime.fromtimestamp(stat.st_mtime).isoformat()

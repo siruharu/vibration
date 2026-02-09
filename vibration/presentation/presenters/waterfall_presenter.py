@@ -1,8 +1,8 @@
 """
-Waterfall analysis presenter - coordinates WaterfallTabView and analysis services.
+워터폴 분석 프레젠터 - WaterfallTabView와 분석 서비스를 조율합니다.
 
-Implements plot_waterfall_spectrum logic with caching to avoid redundant FFT computation
-on axis/angle changes. Uses FFTService for frequency analysis.
+축/각도 변경 시 불필요한 FFT 재연산을 방지하는 캐싱을 적용한
+plot_waterfall_spectrum 로직을 구현합니다. FFTService를 사용하여 주파수 분석을 수행합니다.
 """
 import logging
 import os
@@ -31,10 +31,10 @@ VIEW_TYPE_LABELS = {
 
 class WaterfallPresenter:
     """
-    Presenter for waterfall analysis tab.
+    워터폴 분석 탭 프레젠터.
     
-    Coordinates WaterfallTabView and FFTService for waterfall 3D spectrum rendering.
-    Implements cache to avoid redundant FFT computation on axis/angle changes.
+    WaterfallTabView와 FFTService를 조율하여 워터폴 3D 스펙트럼 렌더링을 수행합니다.
+    축/각도 변경 시 불필요한 FFT 재연산을 방지하는 캐시를 구현합니다.
     """
     
     def __init__(self, view: WaterfallTabView, directory_path: str = ""):

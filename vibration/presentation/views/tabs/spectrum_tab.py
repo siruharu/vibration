@@ -8,7 +8,8 @@ from typing import List, Optional
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QGridLayout, QVBoxLayout, QComboBox, QPushButton,
     QSplitter, QLabel, QListWidget, QAbstractItemView, QCheckBox, QTextBrowser,
-    QTextEdit, QLineEdit, QSizePolicy, QApplication, QDateEdit, QInputDialog
+    QTextEdit, QLineEdit, QSizePolicy, QApplication, QDateEdit, QInputDialog,
+    QDialog, QDialogButtonBox, QFormLayout
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QDate
 
@@ -246,7 +247,7 @@ class SpectrumTabView(QWidget):
     def _create_fft_options(self) -> QGridLayout:
         layout = QGridLayout()
         layout.setContentsMargins(0, 0, 0, 0)
-        layout.setSpacing(0)
+        layout.setSpacing(2)
         
         self.Plot_Options = QTextBrowser()
         self.Plot_Options.setMaximumSize(*WidgetSizes.spec_control())
@@ -535,33 +536,47 @@ class SpectrumTabView(QWidget):
         click_y_inch = event.y / fig.dpi
         
         if click_y_inch < bbox.y0:
-            text, ok = QInputDialog.getText(
-                self, "X axis range", "X axis range (min, max):"
-            )
-            if ok and text:
-                try:
-                    parts = text.split(',')
-                    val_min = float(parts[0].strip())
-                    val_max = float(parts[1].strip())
-                    if val_min < val_max:
-                        ax.set_xlim(val_min, val_max)
-                        canvas.draw_idle()
-                except (ValueError, IndexError):
-                    pass
+            result = self._show_axis_range_dialog("X axis range")
+            if result is not None:
+                val_min, val_max = result
+                if val_min < val_max:
+                    ax.set_xlim(val_min, val_max)
+                    canvas.draw_idle()
         elif click_x_inch < bbox.x0:
-            text, ok = QInputDialog.getText(
-                self, "Y axis range", "Y axis range (min, max):"
-            )
-            if ok and text:
-                try:
-                    parts = text.split(',')
-                    val_min = float(parts[0].strip())
-                    val_max = float(parts[1].strip())
-                    if val_min < val_max:
-                        ax.set_ylim(val_min, val_max)
-                        canvas.draw_idle()
-                except (ValueError, IndexError):
-                    pass
+            result = self._show_axis_range_dialog("Y axis range")
+            if result is not None:
+                val_min, val_max = result
+                if val_min < val_max:
+                    ax.set_ylim(val_min, val_max)
+                    canvas.draw_idle()
+    
+    def _show_axis_range_dialog(self, title: str):
+        """축 범위 입력 다이얼로그 — Min/Max 개별 입력 필드."""
+        dlg = QDialog(self)
+        dlg.setWindowTitle(title)
+        form = QFormLayout(dlg)
+        
+        min_input = QLineEdit()
+        min_input.setPlaceholderText("Min")
+        min_input.setStyleSheet("background-color: lightgray; color: black;")
+        form.addRow("Min:", min_input)
+        
+        max_input = QLineEdit()
+        max_input.setPlaceholderText("Max")
+        max_input.setStyleSheet("background-color: lightgray; color: black;")
+        form.addRow("Max:", max_input)
+        
+        buttons = QDialogButtonBox(QDialogButtonBox.Ok | QDialogButtonBox.Cancel)
+        buttons.accepted.connect(dlg.accept)
+        buttons.rejected.connect(dlg.reject)
+        form.addRow(buttons)
+        
+        if dlg.exec_() == QDialog.Accepted:
+            try:
+                return float(min_input.text()), float(max_input.text())
+            except ValueError:
+                return None
+        return None
     
     def _apply_auto_y_scale(self, plot_type: str):
         """Auto Y 110% 로직 — 현재 x축 범위 내 최대 Y의 110%로 y축 설정."""

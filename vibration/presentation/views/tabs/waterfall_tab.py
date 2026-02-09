@@ -561,6 +561,22 @@ class WaterfallTabView(QWidget):
     def _init_mouse_events(self):
         self.waterfall_canvas.mpl_connect('motion_notify_event', self._on_mouse_move)
         self.waterfall_canvas.mpl_connect('button_press_event', self._on_mouse_click)
+        self.waterfall_canvas.mpl_connect('scroll_event', self._on_scroll)
+    
+    def _on_scroll(self, event):
+        if event.inaxes != self.waterfall_ax:
+            return
+        
+        scale_factor = 0.85 if event.button == 'up' else 1.15
+        
+        xlim = self.waterfall_ax.get_xlim()
+        xdata = event.xdata
+        
+        x_left = xdata - (xdata - xlim[0]) * scale_factor
+        x_right = xdata + (xlim[1] - xdata) * scale_factor
+        self.waterfall_ax.set_xlim(x_left, x_right)
+        
+        self.waterfall_canvas.draw_idle()
     
     def set_picking_data(self, data: List[tuple[float, float, float, float, str]]):
         self._picking_data = data

@@ -7,6 +7,131 @@
 
 ---
 
+## 11. 채널 필터링 + 스크롤 줌 + Trend/Peak 캐싱 (2026-02-10)
+
+### 11.1 변경 개요
+
+요구사항 Gap 분석을 통해 확인된 3가지 핵심 Gap을 해결했습니다:
+1. **채널 체크박스 기능 연결** — Spectrum/Trend/Peak 탭의 채널 체크박스가 UI만 존재하고 필터링이 미연결이었던 것을 Waterfall 패턴으로 완전 연결
+2. **마우스 스크롤 줌** — 전 탭(Spectrum/Trend/Peak/Waterfall)에 커서 위치 기준 스크롤 줌 기능 추가
+3. **Trend/Peak 계산 캐싱** — 동일 파라미터 재실행 시 FFT 재계산 생략 (Waterfall 캐시 패턴 복제)
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| **채널 체크박스** | Waterfall만 동작, 나머지 3탭 UI만 존재 | 전 탭(4개) 동일하게 파일 목록 필터링 |
+| **마우스 줌** | 없음 (수동 축 입력만 가능) | 스크롤 업=줌인, 스크롤 다운=줌아웃 (커서 기준) |
+| **Trend/Peak 캐싱** | 매번 전체 FFT 재계산 | 파라미터 동일 시 캐시 히트 → 즉시 플롯 |
+
+### 11.2 파일별 변경 상세
+
+#### 11.2.1 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| (클래스 시그널) | 추가 | `channel_filter_changed = pyqtSignal()` |
+| `_connect_signals` | 수정 | `checkBox`~`checkBox_6` 6개 `stateChanged` → `_on_channel_filter_changed` 연결, `scroll_event` 2개 캔버스 연결 |
+| `_on_channel_filter_changed` | **신규** | 채널 체크박스 상태 변경 → `_update_filtered_file_list()` + 시그널 emit |
+| `_update_filtered_file_list` | **신규** | `_all_files`에서 선택된 채널(`_N.txt`)로 필터링 → `Querry_list` 갱신 |
+| `_on_scroll` | **신규** | 마우스 스크롤 줌 — `ax`, `canvas` 파라미터로 spectrum/waveform 모두 지원 |
+
+#### 11.2.2 `vibration/presentation/views/tabs/trend_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| (클래스 시그널) | 추가 | `channel_filter_changed = pyqtSignal()` |
+| `__init__` | 수정 | `_all_files: List[str] = []` 인스턴스 변수 추가 |
+| `set_files` | 수정 | `_all_files = list(files)` 저장 추가 |
+| `_connect_signals` | 수정 | `checkBox_13`~`checkBox_18` 6개 `stateChanged` 연결 |
+| `_init_mouse_events` | 수정 | `scroll_event` → `_on_scroll` 연결 추가 |
+| `_on_channel_filter_changed` | **신규** | 채널 체크박스 상태 변경 → 필터링 + emit |
+| `_update_filtered_file_list` | **신규** | `_all_files`에서 채널 필터링 → `Querry_list3` 갱신 |
+| `_on_scroll` | **신규** | 마우스 스크롤 줌 (trend_ax, trend_canvas) |
+
+#### 11.2.3 `vibration/presentation/views/tabs/peak_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| (클래스 시그널) | 추가 | `channel_filter_changed = pyqtSignal()` |
+| `__init__` | 수정 | `_all_files: List[str] = []` 인스턴스 변수 추가 |
+| `set_files` | 수정 | `_all_files = list(files)` 저장 추가 |
+| `_connect_signals` | 수정 | `checkBox_19`~`checkBox_24` 6개 `stateChanged` 연결 |
+| `_init_mouse_events` | 수정 | `scroll_event` → `_on_scroll` 연결 추가 |
+| `_on_channel_filter_changed` | **신규** | 채널 체크박스 상태 변경 → 필터링 + emit |
+| `_update_filtered_file_list` | **신규** | `_all_files`에서 채널 필터링 → `Querry_list4` 갱신 |
+| `_on_scroll` | **신규** | 마우스 스크롤 줌 (peak_ax, peak_canvas) |
+
+#### 11.2.4 `vibration/presentation/views/tabs/waterfall_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_init_mouse_events` | 수정 | `scroll_event` → `_on_scroll` 연결 추가 |
+| `_on_scroll` | **신규** | 마우스 스크롤 줌 — **X축(주파수)만** 줌 (Y축 시간은 고정) |
+
+#### 11.2.5 `vibration/presentation/presenters/trend_presenter.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_trend_cache: dict` 캐시 구조 추가 (`computed`, `result`, `params`) |
+| `_on_compute_requested` | 수정 | `current_params` 빌드 → 캐시 유효성 검사 → 히트 시 즉시 반환, 미스 시 계산 후 캐시 저장 |
+
+#### 11.2.6 `vibration/presentation/presenters/peak_presenter.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_peak_cache: dict` 캐시 구조 추가 (`computed`, `result`, `params`) |
+| `_on_compute_requested` | 수정 | `current_params` 빌드 → 캐시 유효성 검사 → 히트 시 즉시 반환, 미스 시 계산 후 캐시 저장 |
+
+#### 11.2.7 `docs/REQUIREMENTS_GAP_ANALYSIS.md` (신규)
+
+요구사항 Gap 분석 문서 — 전체 기능 매트릭스, 우선순위 분류, 구현 참조 패턴, 작업 로드맵 포함.
+
+### 11.3 채널 필터링 동작
+
+| 조건 | 동작 |
+|------|------|
+| 체크박스 전부 미선택 | 모든 파일 표시 |
+| 1CH 선택 | `*_1.txt` 파일만 표시 |
+| 1CH + 3CH 선택 | `*_1.txt` + `*_3.txt` 파일 표시 |
+| 파일 로드 후 체크박스 변경 | 즉시 필터링 적용 |
+
+### 11.4 스크롤 줌 동작
+
+| 동작 | 결과 |
+|------|------|
+| 스크롤 업 | 줌 인 (scale × 0.85, 뷰 15% 축소) |
+| 스크롤 다운 | 줌 아웃 (scale × 1.15, 뷰 15% 확대) |
+| 줌 기준점 | 마우스 커서의 데이터 좌표 |
+| Waterfall | X축(주파수)만 줌, Y축(시간) 고정 |
+| Spectrum | 2개 캔버스 독립 줌 (waveform/spectrum 각각) |
+
+### 11.5 캐시 유효성 검사 키
+
+```python
+current_params = {
+    'delta_f': delta_f,
+    'overlap': overlap,
+    'window_type': window_type,
+    'view_type': view_type_str,
+    'frequency_band': frequency_band,
+    'file_count': len(file_paths),
+    'file_names': tuple(selected_files)
+}
+```
+
+위 7개 필드 중 하나라도 변경되면 캐시 미스 → 재계산.
+
+### 11.6 영향 범위
+
+| 레이어 | 영향 |
+|--------|------|
+| 뷰 (4개 탭) | 채널 필터링 + 스크롤 줌 추가 |
+| 프레젠터 (2개) | 캐시 로직 추가 |
+| 도메인 모델 | ✅ 변경 없음 |
+| 서비스 레이어 | ✅ 변경 없음 |
+| 인프라 | ✅ 변경 없음 |
+
+---
+
 ## 10. Time/Spectrum 플롯 성능 복원 — 배치 렌더링 + Next 캐시 (2026-02-10)
 
 ### 10.1 변경 개요

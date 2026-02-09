@@ -7,6 +7,130 @@
 
 ---
 
+## 7. Time/Spectrum 탭 강화 (2026-02-09)
+
+### 7.1 변경 개요
+
+Time/Spectrum 탭에 날짜 필터, Sensitivity 다중 적용, 그래프 Refresh, 축 컨트롤 연결, 시간 구간 선택 Spectrum 팝업 기능을 추가했습니다.
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| **날짜 필터** | 없음 | QDateEdit From/To + Filter 버튼으로 파일 기간 필터링 |
+| **Sensitivity 편집** | QLineEdit만 존재, 미연결 | Enter 시 다중 선택 파일에 일괄 적용 + 재계산 |
+| **Refresh/Close All** | 없음 | Refresh 버튼 (현재 파라미터로 재플롯), Close All (팝업 창 전체 닫기) |
+| **Waveform Y축 라벨** | "Vibration Acceleration\n(m/s², RMS)" | "Acceleration (m/s²)" (RMS 제거, 시간영역에 적합) |
+| **축 컨트롤 Set** | UI만 존재, 미연결 | Set 버튼 → 축 범위 적용, 프레젠터 연동 |
+| **축 라벨 클릭** | 없음 | X축/Y축 라벨 영역 클릭 → QInputDialog 팝업으로 범위 입력 |
+| **Y Auto 110%** | 없음 | Auto Y 체크 시 X축 범위 내 최대값의 110%로 자동 스케일 |
+| **시간 구간 선택** | 없음 | Waveform에서 SpanSelector로 구간 드래그 → 별도 Spectrum 창 |
+| **Spectrum 팝업** | 없음 | 다중 non-modal 창, 호버/마커 피킹, Close All로 일괄 닫기 |
+
+### 7.2 파일별 변경 상세
+
+#### 7.2.1 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+**이전:**
+```python
+# 시그널 (5개)
+compute_requested = pyqtSignal()
+next_file_requested = pyqtSignal()
+view_type_changed = pyqtSignal(int)
+window_type_changed = pyqtSignal(str)
+file_clicked = pyqtSignal(str)
+
+# 좌측 패널: 체크박스, Select All/Deselect All, 파일 리스트만
+# 축 컨트롤: UI만 존재 (Auto X/Y, min/max, Set 버튼), 프레젠터 미연결
+# Waveform Y축: VIEW_TYPE_LABELS (RMS 포함)
+```
+
+**이후:**
+```python
+# 시그널 (11개 — 6개 추가)
+compute_requested = pyqtSignal()
+next_file_requested = pyqtSignal()
+view_type_changed = pyqtSignal(int)
+window_type_changed = pyqtSignal(str)
+file_clicked = pyqtSignal(str)
+date_filter_changed = pyqtSignal(str, str)          # 날짜 필터
+refresh_requested = pyqtSignal()                      # Refresh
+close_all_windows_requested = pyqtSignal()            # Close All
+axis_range_changed = pyqtSignal(str, str, float, float)  # 축 범위
+time_range_selected = pyqtSignal(float, float)        # 시간 구간
+
+# 좌측 패널: + QDateEdit From/To + Filter 버튼
+# FFT 옵션: + Refresh (row 6, col 0) + Close All (row 6, col 1)
+# 축 컨트롤: 인스턴스 변수 저장 (wave_*/spec_*), Set → axis_range_changed emit
+# 축 라벨 클릭: _on_canvas_click → QInputDialog 팝업
+# Y Auto 110%: _apply_auto_y_scale() 메서드
+# SpanSelector: waveform에서 시간 구간 드래그 → time_range_selected emit
+# Waveform Y축: WAVEFORM_Y_LABELS (RMS 미포함)
+```
+
+#### 7.2.2 `vibration/presentation/presenters/spectrum_presenter.py`
+
+**이전:**
+```python
+class SpectrumPresenter:
+    def __init__(self, view, fft_service, file_service):
+        # 5개 시그널 연결
+        # _on_compute_requested: 파일 로드 → FFT → 플롯
+
+    # 메서드: _on_compute_requested, _on_view_type_changed,
+    #         _on_window_type_changed, _on_next_file_requested,
+    #         _on_file_clicked, _on_directory_selected, _on_files_loaded
+```
+
+**이후:**
+```python
+class SpectrumPresenter:
+    def __init__(self, view, fft_service, file_service):
+        self._custom_sensitivity: Optional[float] = None  # 커스텀 감도
+        self._all_files: List[str] = []                     # 전체 파일 목록
+        self._spectrum_windows: List[SpectrumWindow] = []   # 팝업 창 목록
+        # 11개 시그널 연결 (6개 추가)
+
+    # 추가 메서드:
+    # _on_date_filter_changed(from_date, to_date) — 파일명에서 날짜 파싱, 필터링
+    # _on_sensitivity_changed() — Sensitivity_edit returnPressed → 커스텀 감도 저장
+    # _on_close_all_windows() — 모든 팝업 Spectrum 창 닫기
+    # _on_axis_range_changed(plot_type, axis, min, max) — 축 범위 적용
+    # _on_time_range_selected(t_start, t_end) — 시간 구간 FFT → SpectrumWindow 생성
+
+    # 변경된 _on_compute_requested:
+    #   + custom_sensitivity 적용 (data / (sensitivity_mV / 1000))
+    # 변경된 _on_files_loaded:
+    #   + _all_files 저장 (필터링 기준)
+```
+
+#### 7.2.3 `vibration/presentation/views/dialogs/spectrum_window.py` (신규)
+
+```python
+class SpectrumWindow(QWidget):
+    """독립 스펙트럼 팝업 윈도우 — 시간 범위 선택 시 해당 구간 FFT 표시."""
+    
+    # 생성: SpectrumWindow(t_start, t_end)
+    # 윈도우 타이틀: "Spectrum [0.500s - 1.200s]"
+    # 크기: 800×500 (기본)
+    # 기능: 호버 도트, 좌클릭 마커, 우클릭 마커 제거
+    # 메서드: plot_spectrum(frequencies, spectrum, label, view_type)
+    # non-modal (Qt.Window 플래그), 여러 개 동시 표시 가능
+    # closeEvent: 리소스 정리 (canvas disconnect, figure clear)
+```
+
+### 7.3 하위 호환성
+
+| 항목 | 호환성 |
+|------|--------|
+| 기존 시그널 | ✅ 모두 유지 (5개 원본 시그널 변경 없음) |
+| 기존 위젯 변수명 | ✅ 변경 없음 (checkBox, Querry_list 등) |
+| 레이아웃 구조 | ✅ 메인 그리드 위치 동일 (row 0-1, col 0-1) |
+| 다른 탭 파일 | ✅ 변경 없음 (trend, peak, waterfall, data_query) |
+| app.py | ✅ 변경 없음 (DI 연결 동일) |
+| 도메인 모델 | ✅ 변경 없음 (models.py) |
+| 서비스 레이어 | ✅ 변경 없음 (fft_service, file_service 등) |
+
+---
+
 ## 6. Data Query 탭 강화 (2026-02-09)
 
 ### 6.1 변경 개요

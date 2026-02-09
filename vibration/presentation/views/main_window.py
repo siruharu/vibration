@@ -21,6 +21,7 @@ from vibration.presentation.views.tabs import (
     TrendTabView,
     PeakTabView
 )
+from vibration.presentation.views.dialogs.responsive_layout_utils import APP_FONT_FAMILY, get_screen_size
 
 
 class MainWindow(QMainWindow):
@@ -62,10 +63,11 @@ class MainWindow(QMainWindow):
     def _setup_window(self):
         """윈도우 속성을 설정합니다."""
         self.setWindowTitle("CNAVE Vibration Analyzer")
-        self.setMinimumSize(1920, 1027)
-        self.resize(1920, 1080)
+        screen_w, screen_h = get_screen_size()
+        self.setMinimumSize(int(screen_w * 0.6), int(screen_h * 0.6))
+        self.resize(int(screen_w * 0.85), int(screen_h * 0.85))
         
-        font = QFont("Malgun Gothic", 9)
+        font = QFont(APP_FONT_FAMILY, 9)
         self.setFont(font)
         
         icon_path = Path("icon.ico")

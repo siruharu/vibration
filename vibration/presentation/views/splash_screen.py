@@ -4,12 +4,17 @@ from pathlib import Path
 
 from PyQt5 import QtCore, QtGui, QtWidgets
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import APP_FONT_FAMILY
+from vibration import __version__
+
 
 class ModernSplashScreen(QtWidgets.QWidget):
     """CNAVE 애플리케이션 스플래시 스크린 (진행률 추적 포함)."""
 
-    def __init__(self, version: str = "v2.0.0", parent: Optional[QtWidgets.QWidget] = None):
+    def __init__(self, version: Optional[str] = None, parent: Optional[QtWidgets.QWidget] = None):
         super().__init__(parent)
+        if version is None:
+            version = f"v{__version__}"
         self.version = version
 
         self.setWindowFlags(
@@ -65,35 +70,35 @@ class ModernSplashScreen(QtWidgets.QWidget):
         frame_layout.addWidget(logo_label)
 
         company_label = QtWidgets.QLabel("CNAVE")
-        company_label.setStyleSheet("""
-            QLabel {
+        company_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 32px;
                 font-weight: bold;
                 color: #003366;
-                font-family: 'Arial';
-            }
+                font-family: '{APP_FONT_FAMILY}';
+            }}
         """)
         company_label.setAlignment(QtCore.Qt.AlignCenter)
         frame_layout.addWidget(company_label)
 
         app_label = QtWidgets.QLabel("CNXMW Post Processor")
-        app_label.setStyleSheet("""
-            QLabel {
+        app_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 18px;
                 color: #666666;
-                font-family: 'Arial';
-            }
+                font-family: '{APP_FONT_FAMILY}';
+            }}
         """)
         app_label.setAlignment(QtCore.Qt.AlignCenter)
         frame_layout.addWidget(app_label)
 
         version_label = QtWidgets.QLabel(self.version)
-        version_label.setStyleSheet("""
-            QLabel {
+        version_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 14px;
                 color: #999999;
-                font-family: 'Arial';
-            }
+                font-family: '{APP_FONT_FAMILY}';
+            }}
         """)
         version_label.setAlignment(QtCore.Qt.AlignCenter)
         frame_layout.addWidget(version_label)
@@ -117,12 +122,12 @@ class ModernSplashScreen(QtWidgets.QWidget):
         frame_layout.addWidget(self.progress_bar)
 
         self.status_label = QtWidgets.QLabel("Starting...")
-        self.status_label.setStyleSheet("""
-            QLabel {
+        self.status_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 12px;
                 color: #666666;
-                font-family: 'Arial';
-            }
+                font-family: '{APP_FONT_FAMILY}';
+            }}
         """)
         self.status_label.setAlignment(QtCore.Qt.AlignCenter)
         frame_layout.addWidget(self.status_label)
@@ -130,12 +135,12 @@ class ModernSplashScreen(QtWidgets.QWidget):
         frame_layout.addStretch()
 
         copyright_label = QtWidgets.QLabel("© 2024-2026 CNAVE. All rights reserved.")
-        copyright_label.setStyleSheet("""
-            QLabel {
+        copyright_label.setStyleSheet(f"""
+            QLabel {{
                 font-size: 10px;
                 color: #999999;
-                font-family: 'Arial';
-            }
+                font-family: '{APP_FONT_FAMILY}';
+            }}
         """)
         copyright_label.setAlignment(QtCore.Qt.AlignCenter)
         frame_layout.addWidget(copyright_label)

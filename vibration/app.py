@@ -127,7 +127,7 @@ def main():
     if app is None:
         app = QApplication(sys.argv)
     
-    splash = ModernSplashScreen(version="v2.0.0")
+    splash = ModernSplashScreen()
     splash.show()
     splash.set_progress(10, "Loading libraries...")
     

@@ -45,6 +45,11 @@ class TrendPresenter:
         self._directory_path: str = ""
         self._current_view_type: str = 'ACC'
         self._last_result: Optional[TrendResult] = None
+        self._trend_cache: dict = {
+            'computed': False,
+            'result': None,
+            'params': {}
+        }
         
         self._event_bus = get_event_bus()
         self._event_bus.files_loaded.connect(self._on_files_loaded)
@@ -98,6 +103,27 @@ class TrendPresenter:
         
         file_paths = [os.path.join(self._directory_path, f) for f in selected_files]
         
+        current_params = {
+            'delta_f': delta_f,
+            'overlap': overlap,
+            'window_type': window_type,
+            'view_type': view_type_str,
+            'frequency_band': frequency_band,
+            'file_count': len(file_paths),
+            'file_names': tuple(selected_files)
+        }
+        
+        cache_valid = (
+            self._trend_cache.get('computed', False) and
+            self._trend_cache.get('params') == current_params
+        )
+        
+        if cache_valid:
+            logger.debug("Using cached trend data")
+            result = self._trend_cache['result']
+            self._update_view_with_result(result)
+            return
+        
         self.view.clear_plot()
         
         progress_dialog = ProgressDialog(len(file_paths), self.view)
@@ -120,6 +146,11 @@ class TrendPresenter:
             )
             
             self._last_result = result
+            self._trend_cache = {
+                'computed': True,
+                'result': result,
+                'params': current_params
+            }
             self._update_view_with_result(result)
             
             logger.info(f"Computed trend for {result.num_files} files, view_type={view_type_str}")

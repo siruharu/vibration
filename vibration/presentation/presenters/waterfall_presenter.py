@@ -41,6 +41,7 @@ class WaterfallPresenter:
     def __init__(self, view: WaterfallTabView, directory_path: str = ""):
         self.view = view
         self._directory_path = directory_path
+        self._all_files: List[str] = []
         
         self._event_bus = get_event_bus()
         self._event_bus.files_loaded.connect(self._on_files_loaded)
@@ -58,6 +59,7 @@ class WaterfallPresenter:
         self._current_x_max: Optional[float] = None
         self._current_z_min: Optional[float] = None
         self._current_z_max: Optional[float] = None
+        self._band_trend_dialogs: List[Any] = []
         
         self._connect_signals()
         logger.debug("WaterfallPresenter initialized")
@@ -69,9 +71,12 @@ class WaterfallPresenter:
         self.view.auto_scale_x_requested.connect(self._on_auto_scale_x)
         self.view.auto_scale_z_requested.connect(self._on_auto_scale_z)
         self.view.angle_changed.connect(self._on_angle_changed)
+        self.view.date_filter_changed.connect(self._on_date_filter_changed)
+        self.view.band_trend_requested.connect(self._on_band_trend_requested)
     
     def _on_files_loaded(self, files: List[str]) -> None:
         logger.info(f"Received {len(files)} files from Data Query")
+        self._all_files = list(files)
         self.view.set_files(files)
     
     def _on_directory_changed(self, directory_path: str) -> None:
@@ -309,6 +314,10 @@ class WaterfallPresenter:
         fig.clf()
         ax = fig.add_subplot(111)
         self.view.set_axes(ax)
+        self.view.hover_dot = None
+        self.view.hover_pos = None
+        self.view.waterfall_marker = None
+        self.view.waterfall_annotation = None
         ax.set_title("Waterfall Spectrum", fontsize=PlotFontSizes.TITLE)
         
         all_frequencies = []
@@ -347,6 +356,7 @@ class WaterfallPresenter:
         labels_for_ticks = []
         
         x_scale = 530
+        picking_data: List[tuple[float, float, float, float, str]] = []
         
         for draw_idx, cached_data in enumerate(self._waterfall_cache['spectra']):
             f = cached_data['frequency']
@@ -382,6 +392,14 @@ class WaterfallPresenter:
             
             ax.plot(offset_x, offset_y, alpha=0.6, linewidth=0.8)
             
+            sample_step = max(1, len(f_filtered) // 200)
+            for i in range(0, len(f_filtered), sample_step):
+                picking_data.append((
+                    float(offset_x[i]), float(offset_y[i]),
+                    float(f_filtered[i]), float(p_filtered[i]),
+                    file_name
+                ))
+            
             if draw_idx == 0:
                 if len(offset_x) >= 2:
                     xticks = np.linspace(offset_x[0], offset_x[-1], 7)
@@ -402,12 +420,11 @@ class WaterfallPresenter:
             
             if draw_idx in label_indices:
                 center_y = np.min(offset_y)
-                base_name = file_name.replace(".txt", "")
-                parts = base_name.split("_")
-                if len(parts) >= 2:
-                    label_text = parts[0] + "_" + parts[1] + "\n" + "_".join(parts[2:])
-                else:
-                    label_text = base_name
+                try:
+                    timestamp = self._extract_timestamp_from_filename(file_name)
+                    label_text = timestamp.strftime("%m-%d\n%H:%M:%S")
+                except Exception:
+                    label_text = file_name.replace(".txt", "")
                 
                 yticks_for_labels.append(center_y)
                 labels_for_ticks.append(label_text)
@@ -434,30 +451,29 @@ class WaterfallPresenter:
         
         self._add_grid_lines(ax, eff_x_min, eff_x_max, x_scale)
         
+        self.view.set_picking_data(picking_data)
         self.view.draw()
     
     def _add_grid_lines(self, ax, x_min: float, x_max: float, x_scale: float):
         x_range = x_max - x_min
-        if x_range <= 100:
-            interval = 10
-        elif x_range <= 200:
-            interval = 20
-        elif x_range <= 500:
-            interval = 50
-        elif x_range <= 1000:
-            interval = 100
-        elif x_range <= 2000:
-            interval = 200
-        elif x_range <= 5000:
-            interval = 500
-        else:
-            interval = 1000
+        if x_range <= 0:
+            return
         
-        grid_ticks = np.arange(
-            int(x_min / interval) * interval,
-            x_max + interval,
-            interval
-        )
+        raw_interval = x_range / 10
+        magnitude = 10 ** int(np.floor(np.log10(raw_interval)))
+        residual = raw_interval / magnitude
+        if residual <= 1.0:
+            nice = 1.0
+        elif residual <= 2.0:
+            nice = 2.0
+        elif residual <= 5.0:
+            nice = 5.0
+        else:
+            nice = 10.0
+        interval = nice * magnitude
+        
+        grid_start = np.ceil(x_min / interval) * interval
+        grid_ticks = np.arange(grid_start, x_max + interval * 0.5, interval)
         
         for tick_val in grid_ticks:
             if x_min <= tick_val <= x_max:
@@ -486,6 +502,73 @@ class WaterfallPresenter:
             return None
         match = re.search(r"[-+]?[0-9]*\.?[0-9]+", str(s))
         return float(match.group()) if match else None
+    
+    def _on_date_filter_changed(self, from_date: str, to_date: str) -> None:
+        filtered = []
+        for filename in self._all_files:
+            try:
+                date_part = filename.split('_')[0]
+                if from_date <= date_part <= to_date:
+                    filtered.append(filename)
+            except (IndexError, ValueError):
+                filtered.append(filename)
+        self.view._populate_file_list_grouped(filtered)
+        logger.info(f"Date filter applied: {from_date} ~ {to_date}, {len(filtered)}/{len(self._all_files)} files")
+    
+    def _on_band_trend_requested(self, target_freq: float) -> None:
+        if not self._waterfall_cache.get('computed') or not self._waterfall_cache['spectra']:
+            logger.warning("No cached data for band trend")
+            return
+        
+        timestamps = []
+        amplitudes = []
+        
+        for cached in self._waterfall_cache['spectra']:
+            freq_arr = cached['frequency']
+            spec_arr = cached['spectrum']
+            idx = int(np.argmin(np.abs(freq_arr - target_freq)))
+            amplitudes.append(float(spec_arr[idx]))
+            timestamps.append(cached['timestamp'])
+        
+        if not timestamps:
+            return
+        
+        self._show_band_trend_window(target_freq, timestamps, amplitudes)
+    
+    def _show_band_trend_window(self, freq, timestamps, amplitudes):
+        from PyQt5.QtWidgets import QDialog, QVBoxLayout
+        from matplotlib.figure import Figure
+        from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+        import matplotlib.dates as mdates
+        
+        dialog = QDialog(self.view)
+        dialog.setWindowTitle(f"Band Trend @ {freq:.1f} Hz")
+        dialog.resize(800, 400)
+        
+        layout = QVBoxLayout(dialog)
+        fig = Figure(figsize=(8, 4))
+        canvas = FigureCanvas(fig)
+        layout.addWidget(canvas)
+        
+        ax = fig.add_subplot(111)
+        ax.plot(timestamps, amplitudes, 'b-o', markersize=3, linewidth=1)
+        ax.set_title(f"Single Band Trend @ {freq:.1f} Hz", fontsize=PlotFontSizes.TITLE)
+        ax.set_xlabel("Time", fontsize=PlotFontSizes.LABEL)
+        
+        params = self.view.get_parameters()
+        view_type_int = cast(int, params.get('view_type', 1))
+        view_type_str = VIEW_TYPE_MAP.get(view_type_int, 'ACC')
+        ax.set_ylabel(VIEW_TYPE_LABELS.get(view_type_str, ''), fontsize=PlotFontSizes.LABEL)
+        
+        ax.grid(True, alpha=0.3, linestyle='--')
+        ax.xaxis.set_major_formatter(mdates.DateFormatter('%m-%d\n%H:%M'))
+        fig.autofmt_xdate()
+        fig.tight_layout()
+        canvas.draw()
+        
+        self._band_trend_dialogs.append(dialog)
+        dialog.finished.connect(lambda: self._band_trend_dialogs.remove(dialog) if dialog in self._band_trend_dialogs else None)
+        dialog.show()
     
     def clear_cache(self):
         self._waterfall_cache = {

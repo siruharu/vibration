@@ -7,6 +7,137 @@
 
 ---
 
+## 8. Waterfall 탭 강화 (2026-02-09)
+
+### 8.1 변경 개요
+
+Waterfall 탭에 날짜 필터, 시간 라벨 개선, 그리드 간격 개선, Picking 기능, Single Band Trend, 채널별 파일 그룹핑을 추가했습니다.
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| **날짜 필터** | 없음 | QDateEdit From/To + Filter 버튼으로 파일 기간 필터링 |
+| **Y축 시간 라벨** | `2026-01-04_12-25-19\n_2_2` (파일명 그대로) | `01-04\n12:25:19` (날짜+시각만, 최대 5개) |
+| **X축 그리드** | 하드코딩 구간별 interval | `range/10` nice-number 알고리즘 (1/2/5 × 10^n) |
+| **Picking** | 없음 | 좌클릭=빨간 마커+주파수/진폭 annotation, 우클릭=제거, 호버=검정 도트 |
+| **Single Band Trend** | 없음 | Band Trend 버튼→주파수 입력→시간별 진폭 트렌드 팝업 |
+| **파일 리스트** | 단순 텍스트 나열 | 채널별 그룹 헤더 + 색상 구분 (6색) |
+
+### 8.2 파일별 변경 상세
+
+#### 8.2.1 `vibration/presentation/views/tabs/waterfall_tab.py`
+
+**이전:**
+```python
+# 시그널 (7개)
+compute_requested = pyqtSignal(bool)
+set_x_axis_requested = pyqtSignal()
+set_z_axis_requested = pyqtSignal()
+auto_scale_x_requested = pyqtSignal()
+auto_scale_z_requested = pyqtSignal()
+angle_changed = pyqtSignal()
+channel_filter_changed = pyqtSignal()
+
+# 좌측 패널: 체크박스, Select All/Deselect All, 단순 파일 리스트
+# 마우스 인터랙션: 없음
+# 파일 리스트: QListWidget.addItems() — 색상/그룹 구분 없음
+```
+
+**이후:**
+```python
+# 시그널 (9개 — 2개 추가)
+compute_requested = pyqtSignal(bool)
+set_x_axis_requested = pyqtSignal()
+set_z_axis_requested = pyqtSignal()
+auto_scale_x_requested = pyqtSignal()
+auto_scale_z_requested = pyqtSignal()
+angle_changed = pyqtSignal()
+channel_filter_changed = pyqtSignal()
+date_filter_changed = pyqtSignal(str, str)    # 날짜 필터
+band_trend_requested = pyqtSignal(float)       # Band Trend 주파수
+
+# 좌측 패널: + QDateEdit From/To + Filter 버튼
+# 중앙 패널: + Band Trend 버튼 (Plot Waterfall 아래)
+# 마우스 인터랙션: hover dot + 좌클릭 마커 + 우클릭 제거
+# 파일 리스트: 채널별 그룹 헤더 (── CH1 (12) ──) + 6색 색상 구분
+
+# 추가 메서드:
+# _on_date_filter_clicked() — From/To 날짜 emit
+# _on_band_trend_clicked() — QInputDialog로 주파수 입력 → emit
+# _init_mouse_events() — canvas에 motion/click 이벤트 연결
+# _on_mouse_move() — picking_data에서 최근접 포인트 탐색, hover dot 표시
+# _on_mouse_click() — 좌클릭=마커, 우클릭=제거
+# _add_picking_marker() — 빨간 마커 + annotation (파일명, 주파수, 진폭)
+# _clear_picking_markers() — 마커/annotation 제거
+# set_picking_data() — 프레젠터에서 변환 좌표+실제 값 수신
+# _populate_file_list_grouped() — 채널별 헤더+색상으로 파일 리스트 구성
+# _extract_channel() — 파일명에서 채널 번호 추출
+```
+
+#### 8.2.2 `vibration/presentation/presenters/waterfall_presenter.py`
+
+**이전:**
+```python
+class WaterfallPresenter:
+    def __init__(self, view, directory_path):
+        # 6개 시그널 연결
+        # _waterfall_cache: FFT 결과 캐싱
+
+    # _render_waterfall(): 3D 라인 플롯
+    #   - 오른쪽 라벨: 파일명 기반 (date_time\n_count_channel)
+    # _add_grid_lines(): 하드코딩 구간별 interval
+```
+
+**이후:**
+```python
+class WaterfallPresenter:
+    def __init__(self, view, directory_path):
+        self._all_files: List[str] = []              # 전체 파일 목록 (필터링 기준)
+        self._band_trend_dialogs: List[Any] = []     # Band Trend 팝업 참조 (GC 방지)
+        # 8개 시그널 연결 (2개 추가)
+
+    # 변경된 _render_waterfall():
+    #   - 오른쪽 라벨: datetime 기반 (MM-DD\nHH:MM:SS)
+    #   - picking 데이터 수집 (라인당 200포인트 샘플링)
+    #   - fig.clf() 시 hover_dot/marker 참조 초기화
+
+    # 변경된 _add_grid_lines():
+    #   - nice-number 알고리즘: range/10 → 1/2/5 × magnitude
+    #   - 예: 100Hz→10Hz, 200Hz→20Hz, 500Hz→50Hz, 1000Hz→100Hz
+
+    # 변경된 _on_files_loaded():
+    #   - _all_files 저장 (날짜 필터 기준)
+
+    # 추가 메서드:
+    # _on_date_filter_changed(from_date, to_date) — 파일명 날짜 기준 필터링
+    # _on_band_trend_requested(target_freq) — 캐시된 스펙트럼에서 해당 주파수 진폭 추출
+    # _show_band_trend_window(freq, timestamps, amplitudes) — QDialog 팝업 생성
+```
+
+### 8.3 채널 색상 매핑
+
+| 채널 | RGB | 용도 |
+|------|-----|------|
+| CH1 | (31, 119, 180) 파랑 | 헤더 텍스트 + 파일명 텍스트 |
+| CH2 | (44, 160, 44) 초록 | 헤더 텍스트 + 파일명 텍스트 |
+| CH3 | (214, 39, 40) 빨강 | 헤더 텍스트 + 파일명 텍스트 |
+| CH4 | (148, 103, 189) 보라 | 헤더 텍스트 + 파일명 텍스트 |
+| CH5 | (255, 127, 14) 주황 | 헤더 텍스트 + 파일명 텍스트 |
+| CH6 | (140, 86, 75) 갈색 | 헤더 텍스트 + 파일명 텍스트 |
+
+### 8.4 하위 호환성
+
+| 항목 | 호환성 |
+|------|--------|
+| 기존 시그널 | ✅ 모두 유지 (7개 원본 시그널 변경 없음) |
+| 기존 위젯 변수명 | ✅ 변경 없음 (checkBox_7-12, Querry_list2, Hz_2 등) |
+| 레이아웃 구조 | ✅ 메인 그리드 위치 동일 |
+| 다른 탭 파일 | ✅ 변경 없음 (spectrum, trend, peak, data_query) |
+| app.py | ✅ 변경 없음 |
+| 도메인 모델 | ✅ 변경 없음 (models.py) |
+| 서비스 레이어 | ✅ 변경 없음 (fft_service, file_service 등) |
+
+---
+
 ## 7. Time/Spectrum 탭 강화 (2026-02-09)
 
 ### 7.1 변경 개요

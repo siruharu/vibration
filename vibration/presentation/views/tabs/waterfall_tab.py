@@ -10,11 +10,13 @@ from typing import Tuple
 
 from PyQt5.QtWidgets import (
     QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
-    QListWidget, QAbstractItemView, QCheckBox, QTextBrowser, QTextEdit,
-    QComboBox, QLineEdit, QSizePolicy, QApplication
+    QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox, QTextBrowser,
+    QTextEdit, QComboBox, QLineEdit, QSizePolicy, QApplication, QDateEdit
 )
-from PyQt5.QtCore import pyqtSignal, Qt
-from PyQt5.QtGui import QScreen
+from PyQt5.QtCore import pyqtSignal, Qt, QDate
+from PyQt5.QtGui import QScreen, QColor, QFont
+
+import numpy as np
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -26,6 +28,15 @@ VIEW_TYPE_LABELS = {
     'ACC': 'Vibration Acceleration\n(m/s², RMS)',
     'VEL': 'Vibration Velocity\n(mm/s, RMS)',
     'DIS': 'Vibration Displacement\n(μm, RMS)'
+}
+
+CHANNEL_COLORS = {
+    '1': QColor(31, 119, 180),
+    '2': QColor(44, 160, 44),
+    '3': QColor(214, 39, 40),
+    '4': QColor(148, 103, 189),
+    '5': QColor(255, 127, 14),
+    '6': QColor(140, 86, 75),
 }
 
 
@@ -50,11 +61,18 @@ class WaterfallTabView(QWidget):
     auto_scale_z_requested = pyqtSignal()
     angle_changed = pyqtSignal()
     channel_filter_changed = pyqtSignal()
+    date_filter_changed = pyqtSignal(str, str)
+    band_trend_requested = pyqtSignal(float)
     
     def __init__(self, parent: Optional[QWidget] = None):
         """워터폴 탭 뷰를 초기화합니다."""
         super().__init__(parent)
         self._all_files: List[str] = []
+        self.hover_dot = None
+        self.hover_pos = None
+        self.waterfall_marker = None
+        self.waterfall_annotation = None
+        self._picking_data: List[tuple[float, float, float, float, str]] = []
         self._setup_ui()
         self._connect_signals()
     
@@ -117,6 +135,26 @@ class WaterfallTabView(QWidget):
         self.deselect_all_btn2.setObjectName("deselect_all_btn")
         self.button2_leftlayout.addWidget(self.deselect_all_btn2)
         
+        # 날짜 필터
+        date_filter_layout = QHBoxLayout()
+        self.date_from2 = QDateEdit()
+        self.date_from2.setCalendarPopup(True)
+        self.date_from2.setDisplayFormat("yyyy-MM-dd")
+        self.date_from2.setDate(QDate(2000, 1, 1))
+        date_filter_layout.addWidget(QLabel("From:"))
+        date_filter_layout.addWidget(self.date_from2)
+
+        self.date_to2 = QDateEdit()
+        self.date_to2.setCalendarPopup(True)
+        self.date_to2.setDisplayFormat("yyyy-MM-dd")
+        self.date_to2.setDate(QDate.currentDate())
+        date_filter_layout.addWidget(QLabel("To:"))
+        date_filter_layout.addWidget(self.date_to2)
+
+        self.date_filter_btn2 = QPushButton("Filter")
+        self.date_filter_btn2.setStyleSheet("background-color: lightgray;color: black;")
+        date_filter_layout.addWidget(self.date_filter_btn2)
+
         # 파일 목록 - 레거시 명명 그대로
         self.Qurry_layout2 = QHBoxLayout()
         self.Querry_list2 = QListWidget()
@@ -130,6 +168,7 @@ class WaterfallTabView(QWidget):
         # 데이터 레이아웃으로 결합
         self.data2_listlayout.addLayout(self.checkboxs_layout)
         self.data2_listlayout.addLayout(self.button2_leftlayout)
+        self.data2_listlayout.addLayout(date_filter_layout)
         self.data2_listlayout.addLayout(self.Qurry_layout2)
         
         # 다른 탭과의 일관성을 위한 별칭
@@ -233,6 +272,10 @@ class WaterfallTabView(QWidget):
         self.plot_waterfall_button.setMaximumSize(*WidgetSizes.option_control())
         self.options2_layout.addWidget(self.plot_waterfall_button)
         
+        self.band_trend_button = QPushButton("Band Trend")
+        self.band_trend_button.setMaximumSize(*WidgetSizes.option_control())
+        self.options2_layout.addWidget(self.band_trend_button)
+        
         # 레이아웃 설정
         self.options2_layout.setContentsMargins(0, 0, 0, 0)
         self.options2_layout.setSpacing(0)
@@ -331,6 +374,7 @@ class WaterfallTabView(QWidget):
         self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=PlotFontSizes.TITLE)
         
         self.waterfall_graph_layout.addWidget(self.waterfall_canvas)
+        self._init_mouse_events()
     
     def _connect_signals(self):
         """프레젠터를 위해 버튼 시그널을 뷰 시그널에 연결합니다."""
@@ -357,6 +401,9 @@ class WaterfallTabView(QWidget):
         self.checkBox_10.stateChanged.connect(self._on_channel_filter_changed)
         self.checkBox_11.stateChanged.connect(self._on_channel_filter_changed)
         self.checkBox_12.stateChanged.connect(self._on_channel_filter_changed)
+        
+        self.date_filter_btn2.clicked.connect(self._on_date_filter_clicked)
+        self.band_trend_button.clicked.connect(self._on_band_trend_clicked)
     
     def _on_channel_filter_changed(self):
         """채널 체크박스 상태 변경을 처리 - 파일 목록을 필터링합니다."""
@@ -368,7 +415,6 @@ class WaterfallTabView(QWidget):
         if not self._all_files:
             return
         
-        # 선택된 채널 가져오기
         selected_channels = []
         checkboxes = [
             self.checkBox_7, self.checkBox_8, self.checkBox_9,
@@ -378,20 +424,45 @@ class WaterfallTabView(QWidget):
             if checkbox.isChecked():
                 selected_channels.append(str(idx))
         
-        # 채널 미선택 시 전체 파일 표시
         if not selected_channels:
-            self.Querry_list2.clear()
-            self.Querry_list2.addItems(self._all_files)
+            self._populate_file_list_grouped(self._all_files)
             return
         
-        # 선택된 채널로 파일 필터링
         filtered_files = [
             f for f in self._all_files
             if any(f.endswith(f"_{ch}.txt") for ch in selected_channels)
         ]
-        
+        self._populate_file_list_grouped(filtered_files)
+    
+    @staticmethod
+    def _extract_channel(filename: str) -> str:
+        try:
+            return filename.rsplit('_', 1)[-1].replace('.txt', '')
+        except (IndexError, ValueError):
+            return '0'
+    
+    def _populate_file_list_grouped(self, files: List[str]):
         self.Querry_list2.clear()
-        self.Querry_list2.addItems(filtered_files)
+        
+        grouped: dict[str, list[str]] = {}
+        for f in files:
+            ch = self._extract_channel(f)
+            grouped.setdefault(ch, []).append(f)
+        
+        for ch_key in sorted(grouped.keys()):
+            header = QListWidgetItem(f"── CH{ch_key} ({len(grouped[ch_key])}) ──")
+            header.setFlags(Qt.ItemFlag.NoItemFlags)
+            header_font = QFont()
+            header_font.setBold(True)
+            header.setFont(header_font)
+            color = CHANNEL_COLORS.get(ch_key, QColor(100, 100, 100))
+            header.setForeground(color)
+            self.Querry_list2.addItem(header)
+            
+            for filename in grouped[ch_key]:
+                item = QListWidgetItem(filename)
+                item.setForeground(color)
+                self.Querry_list2.addItem(item)
     
     def get_parameters(self) -> dict[str, object]:
         """UI 입력에서 현재 FFT 파라미터를 가져옵니다."""
@@ -452,8 +523,7 @@ class WaterfallTabView(QWidget):
     def set_files(self, files: List[str]):
         """Data Query 탭에서 파일 목록을 업데이트합니다."""
         self._all_files = files.copy()
-        self.Querry_list2.clear()
-        self.Querry_list2.addItems(files)
+        self._populate_file_list_grouped(files)
     
     def get_selected_files(self) -> List[str]:
         """현재 선택된 파일 목록을 반환합니다."""
@@ -474,3 +544,106 @@ class WaterfallTabView(QWidget):
     def draw(self):
         """캔버스를 다시 그립니다."""
         self.waterfall_canvas.draw()
+    
+    def _on_date_filter_clicked(self):
+        from_str = self.date_from2.date().toString("yyyy-MM-dd")
+        to_str = self.date_to2.date().toString("yyyy-MM-dd")
+        self.date_filter_changed.emit(from_str, to_str)
+    
+    def _on_band_trend_clicked(self):
+        from PyQt5.QtWidgets import QInputDialog
+        freq, ok = QInputDialog.getDouble(
+            self, "Band Trend", "Frequency (Hz):", value=100.0, min=0.0, max=50000.0, decimals=1
+        )
+        if ok:
+            self.band_trend_requested.emit(freq)
+    
+    def _init_mouse_events(self):
+        self.waterfall_canvas.mpl_connect('motion_notify_event', self._on_mouse_move)
+        self.waterfall_canvas.mpl_connect('button_press_event', self._on_mouse_click)
+    
+    def set_picking_data(self, data: List[tuple[float, float, float, float, str]]):
+        self._picking_data = data
+    
+    def _on_mouse_move(self, event):
+        if not event.inaxes:
+            if self.hover_pos is not None:
+                if self.hover_dot:
+                    self.hover_dot.set_data([], [])
+                self.hover_pos = None
+                self.waterfall_canvas.draw_idle()
+            return
+        
+        if not self._picking_data:
+            return
+        
+        closest = None
+        min_dist = np.inf
+        
+        for entry in self._picking_data:
+            plot_x, plot_y = entry[0], entry[1]
+            dist = np.hypot(event.xdata - plot_x, event.ydata - plot_y)
+            if dist < min_dist:
+                min_dist = dist
+                closest = entry
+        
+        if closest is not None:
+            if self.hover_dot is None:
+                self.hover_dot = self.waterfall_ax.plot([], [], 'ko', markersize=5, alpha=0.5)[0]
+            self.hover_dot.set_data([closest[0]], [closest[1]])
+            self.hover_pos = closest
+            self.waterfall_canvas.draw_idle()
+    
+    def _on_mouse_click(self, event):
+        if not event.inaxes:
+            return
+        if event.button == 1 and self.hover_pos is not None:
+            self._add_picking_marker(self.hover_pos)
+        elif event.button == 3:
+            self._clear_picking_markers()
+    
+    def _add_picking_marker(self, data):
+        plot_x, plot_y, freq, amp, fname = data[0], data[1], data[2], data[3], data[4]
+        
+        if self.waterfall_marker:
+            try:
+                self.waterfall_marker.remove()
+            except Exception:
+                pass
+        if self.waterfall_annotation:
+            try:
+                self.waterfall_annotation.remove()
+            except Exception:
+                pass
+        
+        self.waterfall_marker = self.waterfall_ax.plot(
+            plot_x, plot_y, marker='o', color='red', markersize=7
+        )[0]
+        
+        annotation_text = f"{fname}\nFreq: {freq:.1f} Hz\nAmp: {amp:.4f}"
+        self.waterfall_annotation = self.waterfall_ax.annotate(
+            annotation_text,
+            (plot_x, plot_y),
+            textcoords="offset points",
+            xytext=(10, 10),
+            ha='left',
+            fontsize=PlotFontSizes.ANNOTATION,
+            bbox=dict(boxstyle="round,pad=0.3", edgecolor="black",
+                     facecolor="lightyellow", alpha=0.8)
+        )
+        self.waterfall_canvas.draw_idle()
+    
+    def _clear_picking_markers(self):
+        if self.waterfall_marker:
+            try:
+                self.waterfall_marker.remove()
+                self.waterfall_marker = None
+            except Exception:
+                pass
+        if self.waterfall_annotation:
+            try:
+                self.waterfall_annotation.remove()
+                self.waterfall_annotation = None
+            except Exception:
+                pass
+        self.waterfall_canvas.draw_idle()

@@ -104,6 +104,10 @@ class TrendPresenter:
         progress_dialog.setWindowModality(Qt.WindowModal)
         progress_dialog.show()
         
+        def update_progress(current, total):
+            progress_dialog.update_progress(current)
+            QApplication.processEvents()
+        
         try:
             result = self.trend_service.compute_trend(
                 file_paths=file_paths,
@@ -111,7 +115,8 @@ class TrendPresenter:
                 overlap=overlap,
                 window_type=window_type,
                 view_type=view_type_str,
-                frequency_band=frequency_band
+                frequency_band=frequency_band,
+                progress_callback=update_progress
             )
             
             self._last_result = result

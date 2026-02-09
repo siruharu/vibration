@@ -13,6 +13,63 @@ from pathlib import Path
 class FileParser:
     """최적화된 파일 파서 - 빠른 데이터 로딩 및 메타데이터 추출"""
 
+    @staticmethod
+    def parse_header_only(filepath):
+        """
+        파일 헤더의 메타데이터만 빠르게 추출합니다 (데이터 로딩 없음).
+
+        성능 최적화를 위해 첫 번째 데이터 라인에서 파싱을 중단합니다.
+        수백 개의 파일을 스캔할 때 사용합니다.
+
+        인자:
+            filepath: 파일 경로 (str 또는 Path).
+
+        반환:
+            메타데이터 딕셔너리. 파싱 실패 시 빈 딕셔너리.
+        """
+        metadata = {}
+        try:
+            with open(filepath, 'r', encoding='utf-8') as f:
+                for line in f:
+                    stripped = line.strip()
+                    if not stripped:
+                        continue
+                    if stripped[0].isdigit() or stripped[0] in ['-', '+', '.']:
+                        try:
+                            float(stripped.split()[0])
+                            break
+                        except (ValueError, IndexError):
+                            pass
+                    if ':' in line:
+                        try:
+                            if "D.Sampling Freq." in line:
+                                value = line.split(":")[1].strip()
+                                metadata['sampling_rate'] = float(value.replace("Hz", "").strip())
+                            elif "Time Resolution(dt)" in line:
+                                metadata['dt'] = line.split(":")[1].strip()
+                            elif "Starting Time" in line:
+                                metadata['start_time'] = line.split(":")[1].strip()
+                            elif "Record Length" in line:
+                                metadata['duration'] = line.split(":")[1].strip().split()[0]
+                            elif "Rest time" in line:
+                                metadata['rest_time'] = line.split(":")[1].strip().split()[0]
+                            elif "Repetition" in line:
+                                metadata['repetition'] = line.split(":")[1].strip()
+                            elif "Channel" in line:
+                                metadata['channel'] = line.split(":")[1].strip()
+                            elif "IEPE enable" in line:
+                                metadata['iepe'] = line.split(":")[1].strip()
+                            elif "b.Sensitivity" in line:
+                                if 'b_sensitivity' not in metadata:
+                                    metadata['b_sensitivity'] = line.split(":")[1].strip().split()[0]
+                            elif "Sensitivity" in line and "b.Sensitivity" not in line:
+                                metadata['sensitivity'] = line.split(":")[1].strip()
+                        except Exception:
+                            pass
+        except Exception:
+            pass
+        return metadata
+
     def __init__(self, file_path):
         """
         파일 경로로 파서 초기화

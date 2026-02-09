@@ -6,8 +6,9 @@ Qt 의존성 없음 - 순수 Python 구현.
 """
 
 import os
+import re
 import sys
-from datetime import datetime
+from datetime import datetime, date
 from pathlib import Path
 from typing import List, Optional, Dict, Any, Tuple
 
@@ -100,6 +101,63 @@ class FileService:
         
         return file_dict
     
+    def scan_subdirectories(
+        self,
+        parent_dir: str,
+        date_from: Optional[date] = None,
+        date_to: Optional[date] = None,
+        pattern: str = "*.txt"
+    ) -> List[str]:
+        """
+        상위 폴더의 날짜 기반 하위 폴더를 재귀적으로 스캔하여 파일 경로를 반환합니다.
+
+        하위 폴더가 YYYY-MM-DD 형식이면 날짜 범위로 필터링합니다.
+        상위 폴더에 직접 .txt 파일이 있으면 단일 폴더 모드로 동작합니다 (하위 호환).
+
+        인자:
+            parent_dir: 상위 폴더 경로.
+            date_from: 시작 날짜 필터 (포함).
+            date_to: 종료 날짜 필터 (포함).
+            pattern: 파일 매칭을 위한 Glob 패턴.
+
+        반환:
+            매칭된 파일의 절대 경로 목록.
+        """
+        parent = Path(parent_dir)
+        if not parent.exists() or not parent.is_dir():
+            return []
+
+        direct_files = list(parent.glob(pattern))
+        direct_files = [f for f in direct_files if f.is_file()]
+
+        if direct_files:
+            return sorted([str(f) for f in direct_files])
+
+        date_pattern = re.compile(r'^\d{4}-\d{2}-\d{2}$')
+        all_files = []
+
+        for subdir in sorted(parent.iterdir()):
+            if not subdir.is_dir():
+                continue
+            if not date_pattern.match(subdir.name):
+                continue
+
+            if date_from or date_to:
+                try:
+                    folder_date = date.fromisoformat(subdir.name)
+                except ValueError:
+                    continue
+                if date_from and folder_date < date_from:
+                    continue
+                if date_to and folder_date > date_to:
+                    continue
+
+            for file_path in sorted(subdir.glob(pattern)):
+                if file_path.is_file():
+                    all_files.append(str(file_path))
+
+        return all_files
+
     def load_file(self, filepath: str) -> Dict[str, Any]:
         """
         FileParser를 사용하여 파일 데이터를 로드합니다.

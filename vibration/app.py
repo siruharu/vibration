@@ -12,6 +12,7 @@ from PyQt5.QtWidgets import QApplication
 from PyQt5.QtCore import QTimer
 
 from vibration.core.services import FFTService, TrendService, PeakService, FileService
+from vibration.core.services.project_service import ProjectService
 from vibration.presentation.views import MainWindow
 from vibration.presentation.views.splash_screen import ModernSplashScreen
 from vibration.presentation.presenters import (
@@ -58,6 +59,8 @@ class ApplicationFactory:
             max_workers=self._config.get('max_workers')
         )
         
+        self._services['project'] = ProjectService()
+        
         logger.info("Created all services")
         return self._services
         
@@ -71,7 +74,11 @@ class ApplicationFactory:
             raise RuntimeError("Services must be created before presenters")
         
         data_query_tab = main_window.get_tab(MainWindow.TAB_DATA_QUERY)
-        self._presenters['data_query'] = DataQueryPresenter(view=data_query_tab)
+        self._presenters['data_query'] = DataQueryPresenter(
+            view=data_query_tab,
+            file_service=self._services['file'],
+            project_service=self._services['project'],
+        )
         
         waterfall_tab = main_window.get_tab(MainWindow.TAB_WATERFALL)
         self._presenters['waterfall'] = WaterfallPresenter(view=waterfall_tab)

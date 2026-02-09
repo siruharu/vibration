@@ -1,9 +1,327 @@
-# 변경 이력: 레거시 → 리팩토링
+# 변경 이력
 
 ## 개요
 
 이 문서는 레거시 모놀리식 코드(`cn_3F_trend_optimized.py`)에서 모듈화 MVP 아키텍처(`vibration/`)로의
-전체 변경 사항을 기록합니다.
+전체 변경 사항과, 이후 기능 추가/수정 사항을 기록합니다.
+
+---
+
+## 6. Data Query 탭 강화 (2026-02-09)
+
+### 6.1 변경 개요
+
+Data Query 탭을 단순 파일 선택 도구에서 **프로젝트 기반 데이터 관리 허브**로 강화했습니다.
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| **폴더 스캔** | 단일 폴더만 스캔 | 엄마폴더 → 날짜별 서브폴더 재귀 스캔 |
+| **날짜 필터** | 없음 | QDateEdit From/To 기간 필터링 |
+| **테이블 컬럼** | 5개 (Date, Time, Count, Files, Select) | 9개 (+Ch, Fs(Hz), Sensitivity, Status) |
+| **메타데이터 추출** | 파일 로딩 시에만 | `parse_header_only()` — 헤더만 빠르게 파싱 |
+| **이상 파일 감지** | 없음 | 다수결 기반 sampling_rate 불일치 감지 |
+| **이상 파일 관리** | 없음 | 우클릭 → Quarantine 이동 / 삭제 |
+| **프로젝트 저장** | 없음 | JSON (이름+시각+설명+파일목록+메타데이터) |
+| **프로젝트 로드** | 없음 | JSON에서 전체 상태 복원 |
+| **결과 폴더** | 없음 | `results/spectrum/`, `results/trend/`, `results/peak/` 자동 생성 |
+| **측정 타입 감지** | 없음 | IEPE + mV/g → ACC, 기타 → Pa 자동 판별 |
+
+### 6.2 파일별 변경 상세
+
+#### 신규 파일
+
+##### `core/services/project_service.py` (165줄)
+```python
+# 프로젝트 저장/로드 서비스 (Qt 의존성 없음)
+class ProjectService:
+    def save_project(self, project_data, save_location) -> str
+        # {이름}_{YYYYMMDD_HHMMSS}/project.json 생성
+        # results/spectrum, trend, peak 하위 폴더 자동 생성
+    
+    def load_project(self, json_path) -> Optional[ProjectData]
+        # JSON 역직렬화 → ProjectData 복원
+    
+    @staticmethod
+    def build_project_data(parent_folder, description, grouped_data, measurement_type) -> ProjectData
+        # 그룹화된 파일 데이터 → ProjectData 빌드
+        # 상대경로 변환, 채널/날짜 집계, 다수결 sampling_rate 산출
+```
+
+#### 수정된 파일
+
+##### `core/services/file_parser.py`
+
+**이전:**
+```python
+class FileParser:
+    def __init__(self, file_path):
+        self._load_file()  # 항상 전체 데이터 로딩 (numpy 포함)
+```
+
+**이후:**
+```python
+class FileParser:
+    @staticmethod
+    def parse_header_only(filepath) -> dict:
+        """메타데이터만 추출 — numpy 데이터 로딩 생략.
+        첫 번째 숫자 데이터 라인에서 즉시 중단.
+        수백 개 파일 스캔 시 10배 이상 빠름."""
+        metadata = {}
+        with open(filepath, 'r', encoding='utf-8') as f:
+            for line in f:
+                if is_data_line(line):
+                    break  # 데이터 시작 → 즉시 중단
+                if ':' in line:
+                    # sampling_rate, channel, sensitivity 등 추출
+        return metadata
+    
+    def __init__(self, file_path):
+        self._load_file()  # 기존 전체 로딩 유지 (하위 호환)
+```
+
+##### `core/services/file_service.py`
+
+**이전:**
+```python
+class FileService:
+    def scan_directory(self, directory, pattern) -> List[FileMetadata]
+    def scan_directory_grouped(self, directory, pattern) -> Dict
+    # 단일 폴더만 지원
+```
+
+**이후:**
+```python
+class FileService:
+    def scan_directory(self, directory, pattern) -> List[FileMetadata]       # 기존 유지
+    def scan_directory_grouped(self, directory, pattern) -> Dict             # 기존 유지
+    
+    def scan_subdirectories(self, parent_dir, date_from=None, date_to=None, pattern="*.txt") -> List[str]:
+        """날짜 기반 서브폴더(YYYY-MM-DD) 재귀 스캔.
+        - date_from/date_to로 기간 필터링
+        - 상위 폴더에 직접 .txt 있으면 단일 폴더 모드 (하위 호환)
+        - 반환: 절대 경로 리스트"""
+```
+
+##### `core/domain/models.py`
+
+**추가된 모델:**
+```python
+@dataclass
+class ProjectFileInfo:
+    """프로젝트 내 개별 파일 정보"""
+    relative_path: str      # 엄마폴더 기준 상대경로
+    date: str
+    time: str
+    channel: str = ''
+    sampling_rate: float = 0.0
+    sensitivity: str = ''
+    is_anomaly: bool = False
+    
+    def to_dict(self) -> Dict: ...
+    @classmethod
+    def from_dict(cls, data) -> 'ProjectFileInfo': ...
+
+@dataclass
+class ProjectData:
+    """프로젝트 저장/로드 컨테이너"""
+    name: str               # 엄마폴더명
+    description: str        # 사용자 설명
+    created_at: str         # ISO 8601 타임스탬프
+    parent_folder: str      # 절대경로
+    measurement_type: str   # ACC / Pa / Unknown
+    files: List[ProjectFileInfo]
+    summary: Dict[str, Any] # total_files, date_range, channels, common_sampling_rate
+    project_folder: str     # 생성된 프로젝트 폴더명
+    
+    def to_dict(self) -> Dict: ...
+    @classmethod
+    def from_dict(cls, data) -> 'ProjectData': ...
+```
+
+##### `presentation/models/file_list_model.py`
+
+**이전:**
+```python
+class FileListModel(QAbstractTableModel):
+    _headers = ['Date', 'Time', 'Count', 'Files', 'Select']  # 5개 컬럼
+    
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            # Date, Time, Count, Files, Select만 처리
+```
+
+**이후:**
+```python
+# 컬럼 인덱스 상수 (매직넘버 제거)
+COL_DATE = 0; COL_TIME = 1; COL_COUNT = 2; COL_CH = 3
+COL_FS = 4; COL_SENSITIVITY = 5; COL_FILES = 6; COL_STATUS = 7; COL_SELECT = 8
+
+ANOMALY_RED = QColor(255, 180, 180)
+ANOMALY_YELLOW = QColor(255, 255, 180)
+
+class FileListModel(QAbstractTableModel):
+    _headers = ['Date', 'Time', 'Count', 'Ch', 'Fs(Hz)', 'Sensitivity', 'Files', 'Status', 'Select']
+    
+    def data(self, index, role):
+        if role == Qt.DisplayRole:
+            # 9개 컬럼 모두 처리 (Ch, Fs, Sensitivity, Status 추가)
+        elif role == Qt.BackgroundRole:
+            if row_data.get('is_anomaly'):
+                return QBrush(ANOMALY_RED) if anomaly_type == 'error' else QBrush(ANOMALY_YELLOW)
+    
+    def get_row_data(self, row) -> Optional[Dict]:  # 신규
+    def remove_rows(self, rows) -> None:             # 신규 (Quarantine/Delete용)
+```
+
+##### `presentation/views/tabs/data_query_tab.py`
+
+**이전:**
+```python
+class DataQueryTabView(QWidget):
+    # 시그널: directory_selected, files_loaded, files_chosen, switch_to_spectrum_requested, sensitivity_changed
+    
+    def _setup_ui(self):
+        # Select, Load Data, directory_display, Choose 버튼만 존재
+        self.file_table.horizontalHeader().setSectionResizeMode(3, QHeaderView.Stretch)  # 매직넘버
+        # 컨텍스트 메뉴 없음, 날짜 필터 없음, 프로젝트 버튼 없음
+```
+
+**이후:**
+```python
+class DataQueryTabView(QWidget):
+    # 기존 시그널 유지 + 신규 시그널 4개 추가
+    save_project_requested = pyqtSignal()
+    load_project_requested = pyqtSignal()
+    quarantine_requested = pyqtSignal(list)   # 선택된 행 인덱스
+    delete_requested = pyqtSignal(list)       # 선택된 행 인덱스
+    
+    def _setup_ui(self):
+        # [기존] Select, Load Data, directory_display, Choose
+        # [추가] 날짜 필터 행: QDateEdit(From) ~ QDateEdit(To) + Type 라벨 + Save/Load Project 버튼
+        # 테이블: COL_FILES 상수 사용, 우클릭 컨텍스트 메뉴, 행 선택 모드
+    
+    def _on_context_menu(self, pos):           # 우클릭 → Move to Quarantine / Delete
+    def get_date_range(self):                  # From/To 날짜 반환
+    def set_measurement_type(self, mtype):     # Type 라벨 업데이트
+    def ask_project_description(self):         # QInputDialog로 설명 입력
+    def ask_save_location(self):               # QFileDialog로 저장 위치 선택
+    def ask_load_project_file(self):           # QFileDialog로 .json 선택
+```
+
+##### `presentation/presenters/data_query_presenter.py`
+
+**이전:**
+```python
+class DataQueryPresenter:
+    def __init__(self, view: DataQueryTabView):
+        # FileParser만 사용, DI 없음
+    
+    def _load_files_from_directory(self):
+        files = os.listdir(self._directory_path)
+        # 단일 폴더 .txt 파일만 스캔
+        # 날짜/시간으로 그룹화 → 테이블 표시
+        # 메타데이터 추출 없음, anomaly 감지 없음
+```
+
+**이후:**
+```python
+class DataQueryPresenter:
+    def __init__(self, view, file_service=None, project_service=None):
+        # FileService + ProjectService DI 주입
+    
+    def _load_files_from_directory(self):
+        # 1. scan_subdirectories()로 서브폴더 재귀 스캔 (날짜 필터 적용)
+        # 2. 하위 호환: 서브폴더 없으면 단일 폴더 모드
+        # 3. parse_header_only()로 각 파일 메타데이터 빠르게 추출
+        # 4. 날짜/시간 그룹화 + 채널/Fs/Sensitivity 컬럼 데이터 구성
+        # 5. _detect_anomalies(): 다수결 sampling_rate vs 각 그룹 비교
+        # 6. _detect_measurement_type(): IEPE + mV/g → ACC, 기타 → Pa
+        # 7. 테이블 + Type 라벨 업데이트
+    
+    def _on_save_project(self):    # description 입력 → 위치 선택 → JSON 저장
+    def _on_load_project(self):    # .json 선택 → 상태 복원 → 결과 폴더 생성
+    def _on_quarantine(self, rows): # 선택 파일 → quarantine/ 폴더로 이동
+    def _on_delete(self, rows):     # 확인 다이얼로그 → 파일 삭제
+```
+
+##### `infrastructure/event_bus.py`
+
+**추가된 시그널:**
+```python
+class EventBus(QObject):
+    # [기존 시그널 유지]
+    
+    # 프로젝트 이벤트 (신규)
+    project_saved = pyqtSignal(str)   # 저장된 project.json 경로
+    project_loaded = pyqtSignal(str)  # 로드된 project.json 경로
+```
+
+##### `app.py`
+
+**이전:**
+```python
+def create_services(self):
+    self._services['file'] = FileService()
+    # ... fft, trend, peak
+
+def create_presenters(self, main_window):
+    self._presenters['data_query'] = DataQueryPresenter(view=data_query_tab)
+    # DI 없음 — view만 전달
+```
+
+**이후:**
+```python
+def create_services(self):
+    self._services['file'] = FileService()
+    self._services['project'] = ProjectService()    # 신규
+    # ... fft, trend, peak
+
+def create_presenters(self, main_window):
+    self._presenters['data_query'] = DataQueryPresenter(
+        view=data_query_tab,
+        file_service=self._services['file'],        # DI 주입
+        project_service=self._services['project'],  # DI 주입
+    )
+```
+
+### 6.3 프로젝트 JSON 구조
+
+```json
+{
+  "name": "ProjectA",
+  "description": "1차 진동 측정 데이터",
+  "created_at": "2026-02-09T12:45:00",
+  "parent_folder": "/data/ProjectA",
+  "measurement_type": "ACC",
+  "files": [
+    {
+      "relative_path": "2025-01-10/2025-01-10_09-00-00_001_ch1.txt",
+      "date": "2025-01-10",
+      "time": "09:00:00",
+      "channel": "ch1",
+      "sampling_rate": 10240.0,
+      "sensitivity": "100 mV/g",
+      "is_anomaly": false
+    }
+  ],
+  "summary": {
+    "total_files": 150,
+    "date_range": ["2025-01-10", "2025-01-12"],
+    "channels": ["ch1", "ch2", "ch3"],
+    "common_sampling_rate": 10240.0
+  },
+  "project_folder": "ProjectA_20260209_124500"
+}
+```
+
+### 6.4 하위 호환성
+
+| 시나리오 | 동작 |
+|----------|------|
+| 단일 폴더에 .txt 파일이 직접 있음 | 기존과 동일하게 스캔 (서브폴더 무시) |
+| 기존 DataQueryPresenter(view=...) 호출 | `file_service`/`project_service` 기본값 자동 생성 |
+| 기존 EventBus 시그널 | 변경 없음 (project_saved/loaded만 추가) |
+| 기존 5컬럼 데이터 dict 전달 | 새 컬럼 값은 빈 문자열로 표시 |
 
 ---
 

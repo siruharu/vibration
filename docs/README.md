@@ -16,8 +16,8 @@
 ```
 vibration/
 ├── core/               # 비즈니스 로직 (Qt 의존성 없음)
-│   ├── domain/         # 도메인 모델 (FFTResult, TrendResult 등)
-│   └── services/       # 서비스 (FFT, 파일, 트렌드, 피크)
+│   ├── domain/         # 도메인 모델 (FFTResult, TrendResult, ProjectData 등)
+│   └── services/       # 서비스 (FFT, 파일, 트렌드, 피크, 프로젝트)
 ├── presentation/       # UI 레이어 (PyQt5)
 │   ├── presenters/     # 프레젠터 (뷰-서비스 조율)
 │   ├── views/          # 뷰 (탭, 다이얼로그, 위젯)
@@ -26,6 +26,16 @@ vibration/
 ├── legacy/             # 레거시 코드 아카이브 (참조용)
 └── app.py              # 애플리케이션 팩토리 (진입점)
 ```
+
+### 주요 기능
+
+| 탭 | 기능 |
+|----|------|
+| **Data Query** | 프로젝트 기반 데이터 관리 — 엄마폴더 스캔, 날짜 필터, 이상파일 감지/격리, 프로젝트 저장/로드, 측정타입 자동 판별 |
+| **Spectrum** | FFT 스펙트럼 분석 |
+| **Trend** | 시간 영역 트렌드 분석 |
+| **Peak Pick** | 피크 추출 및 분석 |
+| **Waterfall** | 3D 워터폴 플롯 |
 
 ### 실행 방법
 ```bash

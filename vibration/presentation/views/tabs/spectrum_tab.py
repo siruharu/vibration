@@ -9,7 +9,7 @@ from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QGridLayout, QVBoxLayout, QComboBox, QPushButton,
     QSplitter, QLabel, QListWidget, QAbstractItemView, QCheckBox, QTextBrowser,
     QTextEdit, QLineEdit, QSizePolicy, QApplication, QDateEdit, QInputDialog,
-    QDialog, QDialogButtonBox, QFormLayout
+    QDialog, QDialogButtonBox, QFormLayout, QMessageBox
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QDate
 
@@ -305,24 +305,26 @@ class SpectrumTabView(QWidget):
         self.select_pytpe.setMaximumSize(*WidgetSizes.spec_control())
         layout.addWidget(self.select_pytpe, 4, 1)
         
+        btn_style = "background-color: lightgray;color: black;"
+        
         self.plot_button = QPushButton("Plot")
-        self.plot_button.setMaximumSize(*WidgetSizes.spec_control())
-        self.plot_button.setStyleSheet("background-color: lightgray;color: black;")
+        self.plot_button.setFixedSize(*WidgetSizes.spec_control())
+        self.plot_button.setStyleSheet(btn_style)
         layout.addWidget(self.plot_button, 5, 0)
         
         self.next_button = QPushButton("Next")
-        self.next_button.setMaximumSize(*WidgetSizes.spec_control())
-        self.next_button.setStyleSheet("background-color: lightgray;color: black;")
+        self.next_button.setFixedSize(*WidgetSizes.spec_control())
+        self.next_button.setStyleSheet(btn_style)
         layout.addWidget(self.next_button, 5, 1)
         
         self.refresh_button = QPushButton("Refresh")
-        self.refresh_button.setMaximumSize(*WidgetSizes.spec_control())
-        self.refresh_button.setStyleSheet("background-color: lightgray;color: black;")
+        self.refresh_button.setFixedSize(*WidgetSizes.spec_control())
+        self.refresh_button.setStyleSheet(btn_style)
         layout.addWidget(self.refresh_button, 6, 0)
         
         self.close_all_button = QPushButton("Close All")
-        self.close_all_button.setMaximumSize(*WidgetSizes.spec_control())
-        self.close_all_button.setStyleSheet("background-color: lightgray;color: black;")
+        self.close_all_button.setFixedSize(*WidgetSizes.spec_control())
+        self.close_all_button.setStyleSheet(btn_style)
         layout.addWidget(self.close_all_button, 6, 1)
         
         layout.setRowStretch(0, 1)
@@ -663,6 +665,8 @@ class SpectrumTabView(QWidget):
             'view_type': self.select_pytpe.currentData()
         }
     
+    _MAX_LEGEND_ITEMS = 15
+    
     def plot_spectrum(self, frequencies: List[float], spectrum: List[float],
                       label: str = '', color_index: int = 0, clear: bool = True):
         if clear:
@@ -680,10 +684,7 @@ class SpectrumTabView(QWidget):
         self.ax.set_xlabel('Frequency (Hz)')
         self.ax.set_ylabel(VIEW_TYPE_LABELS.get(self._current_view_type, ''))
         self.ax.grid(True)
-        if label:
-            self.ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
-                          fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
-        self.canvas.draw_idle()
+        self._update_legend(self.ax, self.figure, self.canvas)
         self._apply_auto_y_scale('spec')
     
     def plot_waveform(self, time: List[float], amplitude: List[float],
@@ -697,10 +698,7 @@ class SpectrumTabView(QWidget):
         self.waveax.set_xlabel('Time (s)')
         self.waveax.set_ylabel(WAVEFORM_Y_LABELS.get(self._current_view_type, ''))
         self.waveax.grid(True)
-        if label:
-            self.waveax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
-                             fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
-        self.wavecanvas.draw_idle()
+        self._update_legend(self.waveax, self.waveform_figure, self.wavecanvas)
         self._apply_auto_y_scale('wave')
         
         self._span_selector = SpanSelector(
@@ -708,6 +706,26 @@ class SpectrumTabView(QWidget):
             useblit=True, props=dict(alpha=0.3, facecolor='yellow'),
             interactive=True, drag_from_anywhere=True
         )
+    
+    def _update_legend(self, ax, figure, canvas):
+        handles, labels = ax.get_legend_handles_labels()
+        if not labels:
+            canvas.draw_idle()
+            return
+        
+        if len(labels) <= self._MAX_LEGEND_ITEMS:
+            ax.legend(
+                loc='upper left', bbox_to_anchor=(1.02, 1),
+                fontsize=PlotFontSizes.LEGEND,
+                frameon=True, fancybox=True, shadow=True
+            )
+            figure.set_tight_layout({'rect': [0, 0, 0.88, 1]})
+        else:
+            legend = ax.get_legend()
+            if legend:
+                legend.remove()
+            figure.set_tight_layout({'rect': [0, 0, 0.98, 1]})
+        canvas.draw_idle()
     
     def set_view_type(self, view_type: str):
         self._current_view_type = view_type
@@ -722,6 +740,9 @@ class SpectrumTabView(QWidget):
         self.waveax.clear()
         self.waveax.set_title("Waveform", fontsize=PlotFontSizes.TITLE)
         self.wavecanvas.draw()
+    
+    def show_warning(self, title: str, message: str):
+        QMessageBox.warning(self, title, message)
     
     def set_files(self, files: List[str]):
         self._all_files = list(files)

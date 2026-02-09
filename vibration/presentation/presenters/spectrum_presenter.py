@@ -135,6 +135,10 @@ class SpectrumPresenter:
         self._last_results = []
         self._signal_data_list = []
         
+        nfft = self.fft_service._engine.nfft
+        skipped_files = []
+        plotted_count = 0
+        
         progress_dialog = ProgressDialog(len(selected_files), self.view)
         progress_dialog.setWindowModality(Qt.WindowModal)
         progress_dialog.show()
@@ -161,6 +165,15 @@ class SpectrumPresenter:
                     if self._custom_sensitivity is not None:
                         raw_data = raw_data / (self._custom_sensitivity / 1000.0)
                     
+                    # NFFT보다 짧은 데이터는 스킵
+                    if len(raw_data) < nfft:
+                        skipped_files.append((filename, len(raw_data)))
+                        logger.warning(
+                            f"Skipped {filename}: data length ({len(raw_data)}) "
+                            f"< NFFT ({nfft})"
+                        )
+                        continue
+                    
                     signal_data = SignalData(
                         data=raw_data,
                         sampling_rate=file_data['sampling_rate'],
@@ -179,24 +192,44 @@ class SpectrumPresenter:
                         time=time_array.tolist(),
                         amplitude=signal_data.data.tolist(),
                         label=filename,
-                        color_index=idx,
-                        clear=(idx == 0)
+                        color_index=plotted_count,
+                        clear=(plotted_count == 0)
                     )
                     
                     self.view.plot_spectrum(
                         frequencies=result.frequency.tolist(),
                         spectrum=result.spectrum.tolist(),
                         label=filename,
-                        color_index=idx,
-                        clear=(idx == 0)
+                        color_index=plotted_count,
+                        clear=(plotted_count == 0)
                     )
                     
-                    logger.debug(f"Plotted signal {idx}: {filename}")
+                    plotted_count += 1
+                    logger.debug(f"Plotted signal {plotted_count}: {filename}")
                     
                 except Exception as e:
                     logger.error(f"Error processing file {filename}: {e}")
             
-            logger.info(f"Computed {len(self._last_results)} spectra from {len(selected_files)} selected files, view_type={view_type_str}")
+            # 스킵된 파일이 있으면 사용자에게 알림
+            if skipped_files:
+                skip_msg_lines = [
+                    f"  - {fname} (길이: {dlen})"
+                    for fname, dlen in skipped_files[:10]
+                ]
+                if len(skipped_files) > 10:
+                    skip_msg_lines.append(f"  ... 외 {len(skipped_files) - 10}개")
+                skip_msg = "\n".join(skip_msg_lines)
+                self.view.show_warning(
+                    "데이터 길이 부족",
+                    f"다음 {len(skipped_files)}개 파일의 데이터 길이가 "
+                    f"NFFT({nfft})보다 짧아 분석에서 제외되었습니다:\n\n{skip_msg}"
+                )
+            
+            logger.info(
+                f"Computed {len(self._last_results)} spectra from "
+                f"{len(selected_files)} selected files "
+                f"(skipped {len(skipped_files)}), view_type={view_type_str}"
+            )
         finally:
             progress_dialog.close()
     

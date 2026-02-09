@@ -512,8 +512,7 @@ class WaterfallPresenter:
                     filtered.append(filename)
             except (IndexError, ValueError):
                 filtered.append(filename)
-        self.view.Querry_list2.clear()
-        self.view.Querry_list2.addItems(filtered)
+        self.view._populate_file_list_grouped(filtered)
         logger.info(f"Date filter applied: {from_date} ~ {to_date}, {len(filtered)}/{len(self._all_files)} files")
     
     def _on_band_trend_requested(self, target_freq: float) -> None:

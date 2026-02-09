@@ -10,11 +10,11 @@ from typing import Tuple
 
 from PyQt5.QtWidgets import (
     QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
-    QListWidget, QAbstractItemView, QCheckBox, QTextBrowser, QTextEdit,
-    QComboBox, QLineEdit, QSizePolicy, QApplication, QDateEdit
+    QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox, QTextBrowser,
+    QTextEdit, QComboBox, QLineEdit, QSizePolicy, QApplication, QDateEdit
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QDate
-from PyQt5.QtGui import QScreen
+from PyQt5.QtGui import QScreen, QColor, QFont
 
 import numpy as np
 
@@ -28,6 +28,15 @@ VIEW_TYPE_LABELS = {
     'ACC': 'Vibration Acceleration\n(m/s², RMS)',
     'VEL': 'Vibration Velocity\n(mm/s, RMS)',
     'DIS': 'Vibration Displacement\n(μm, RMS)'
+}
+
+CHANNEL_COLORS = {
+    '1': QColor(31, 119, 180),
+    '2': QColor(44, 160, 44),
+    '3': QColor(214, 39, 40),
+    '4': QColor(148, 103, 189),
+    '5': QColor(255, 127, 14),
+    '6': QColor(140, 86, 75),
 }
 
 
@@ -406,7 +415,6 @@ class WaterfallTabView(QWidget):
         if not self._all_files:
             return
         
-        # 선택된 채널 가져오기
         selected_channels = []
         checkboxes = [
             self.checkBox_7, self.checkBox_8, self.checkBox_9,
@@ -416,20 +424,45 @@ class WaterfallTabView(QWidget):
             if checkbox.isChecked():
                 selected_channels.append(str(idx))
         
-        # 채널 미선택 시 전체 파일 표시
         if not selected_channels:
-            self.Querry_list2.clear()
-            self.Querry_list2.addItems(self._all_files)
+            self._populate_file_list_grouped(self._all_files)
             return
         
-        # 선택된 채널로 파일 필터링
         filtered_files = [
             f for f in self._all_files
             if any(f.endswith(f"_{ch}.txt") for ch in selected_channels)
         ]
-        
+        self._populate_file_list_grouped(filtered_files)
+    
+    @staticmethod
+    def _extract_channel(filename: str) -> str:
+        try:
+            return filename.rsplit('_', 1)[-1].replace('.txt', '')
+        except (IndexError, ValueError):
+            return '0'
+    
+    def _populate_file_list_grouped(self, files: List[str]):
         self.Querry_list2.clear()
-        self.Querry_list2.addItems(filtered_files)
+        
+        grouped: dict[str, list[str]] = {}
+        for f in files:
+            ch = self._extract_channel(f)
+            grouped.setdefault(ch, []).append(f)
+        
+        for ch_key in sorted(grouped.keys()):
+            header = QListWidgetItem(f"── CH{ch_key} ({len(grouped[ch_key])}) ──")
+            header.setFlags(Qt.ItemFlag.NoItemFlags)
+            header_font = QFont()
+            header_font.setBold(True)
+            header.setFont(header_font)
+            color = CHANNEL_COLORS.get(ch_key, QColor(100, 100, 100))
+            header.setForeground(color)
+            self.Querry_list2.addItem(header)
+            
+            for filename in grouped[ch_key]:
+                item = QListWidgetItem(filename)
+                item.setForeground(color)
+                self.Querry_list2.addItem(item)
     
     def get_parameters(self) -> dict[str, object]:
         """UI 입력에서 현재 FFT 파라미터를 가져옵니다."""
@@ -490,8 +523,7 @@ class WaterfallTabView(QWidget):
     def set_files(self, files: List[str]):
         """Data Query 탭에서 파일 목록을 업데이트합니다."""
         self._all_files = files.copy()
-        self.Querry_list2.clear()
-        self.Querry_list2.addItems(files)
+        self._populate_file_list_grouped(files)
     
     def get_selected_files(self) -> List[str]:
         """현재 선택된 파일 목록을 반환합니다."""

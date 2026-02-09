@@ -19,6 +19,8 @@ from PyQt5.QtGui import QScreen
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import WidgetSizes, PlotFontSizes
+
 
 VIEW_TYPE_LABELS = {
     'ACC': 'Vibration Acceleration\n(m/s², RMS)',
@@ -119,8 +121,8 @@ class WaterfallTabView(QWidget):
         self.Qurry_layout2 = QHBoxLayout()
         self.Querry_list2 = QListWidget()
         self.Querry_list2.setObjectName("Querry_list2")
-        self.Querry_list2.setMinimumWidth(300)
-        self.Querry_list2.setMaximumWidth(300)
+        self.Querry_list2.setMinimumWidth(WidgetSizes.file_list_width())
+        self.Querry_list2.setMaximumWidth(WidgetSizes.file_list_width())
         self.Querry_list2.setFocusPolicy(Qt.FocusPolicy.StrongFocus)
         self.Querry_list2.setSelectionMode(QAbstractItemView.ExtendedSelection)
         self.Qurry_layout2.addWidget(self.Querry_list2)
@@ -140,21 +142,21 @@ class WaterfallTabView(QWidget):
         
         # FFT 옵션 라벨
         self.Plot_Options_2 = QTextBrowser()
-        self.Plot_Options_2.setMaximumSize(129, 27)
+        self.Plot_Options_2.setMaximumSize(*WidgetSizes.option_control())
         self.Plot_Options_2.setObjectName("Plot_Options_2")
         self.Plot_Options_2.setHtml("FFT Options")
         self.options2_layout.addWidget(self.Plot_Options_2, 0, 0)
         
         # Δf label
         self.textBrowser_18 = QTextBrowser()
-        self.textBrowser_18.setMaximumSize(129, 27)
+        self.textBrowser_18.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_18.setObjectName("textBrowser_18")
         self.textBrowser_18.setHtml("Δf:")
         self.options2_layout.addWidget(self.textBrowser_18, 1, 0)
         
         # Δf input - exact legacy naming: Hz_2
         self.Hz_2 = QTextEdit()
-        self.Hz_2.setMaximumSize(129, 27)
+        self.Hz_2.setMaximumSize(*WidgetSizes.option_control())
         self.Hz_2.setPlaceholderText("Hz")
         self.Hz_2.setObjectName("Hz_2")
         self.Hz_2.setStyleSheet("background-color: lightgray; color: black;")
@@ -162,14 +164,14 @@ class WaterfallTabView(QWidget):
         
         # Window Function label
         self.textBrowser_19 = QTextBrowser()
-        self.textBrowser_19.setMaximumSize(129, 27)
+        self.textBrowser_19.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_19.setObjectName("textBrowser_19")
         self.textBrowser_19.setHtml("Window Function:")
         self.options2_layout.addWidget(self.textBrowser_19, 2, 0)
         
         # Window Function combo - exact legacy naming: Function_2
         self.Function_2 = QComboBox()
-        self.Function_2.setMaximumSize(129, 27)
+        self.Function_2.setMaximumSize(*WidgetSizes.option_control())
         self.Function_2.setObjectName("Function_2")
         self.Function_2.setStyleSheet("background-color: lightgray; color: black;")
         self.Function_2.addItem("Rectangular")
@@ -179,14 +181,14 @@ class WaterfallTabView(QWidget):
         
         # Overlap Factor label
         self.textBrowser_20 = QTextBrowser()
-        self.textBrowser_20.setMaximumSize(129, 27)
+        self.textBrowser_20.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_20.setObjectName("textBrowser_20")
         self.textBrowser_20.setHtml("Overlap Factor:")
         self.options2_layout.addWidget(self.textBrowser_20, 3, 0)
         
         # Overlap Factor combo - exact legacy naming: Overlap_Factor_2
         self.Overlap_Factor_2 = QComboBox()
-        self.Overlap_Factor_2.setMaximumSize(129, 27)
+        self.Overlap_Factor_2.setMaximumSize(*WidgetSizes.option_control())
         self.Overlap_Factor_2.setObjectName("Overlap_Factor_2")
         self.Overlap_Factor_2.setStyleSheet("background-color: lightgray; color: black;")
         self.Overlap_Factor_2.addItem("0%")
@@ -198,14 +200,14 @@ class WaterfallTabView(QWidget):
         # Convert label
         self.select_type_convert2 = QTextBrowser()
         self.select_type_convert2.setObjectName("Convert")
-        self.select_type_convert2.setMaximumSize(129, 27)
+        self.select_type_convert2.setMaximumSize(*WidgetSizes.option_control())
         self.select_type_convert2.setHtml("Convert")
         self.options2_layout.addWidget(self.select_type_convert2, 4, 0)
         
         # Convert combo - exact legacy naming: select_pytpe2
         self.select_pytpe2 = QComboBox()
         self.select_pytpe2.setObjectName("select_pytpe")
-        self.select_pytpe2.setMaximumSize(129, 27)
+        self.select_pytpe2.setMaximumSize(*WidgetSizes.option_control())
         self.select_pytpe2.setStyleSheet("background-color: lightgray; color: black;")
         self.select_pytpe2.addItem("ACC", 1)
         self.select_pytpe2.addItem("VEL", 2)
@@ -215,7 +217,7 @@ class WaterfallTabView(QWidget):
         # Angle label
         self.input_angle = QTextBrowser()
         self.input_angle.setObjectName("angle")
-        self.input_angle.setMaximumSize(129, 27)
+        self.input_angle.setMaximumSize(*WidgetSizes.option_control())
         self.input_angle.setHtml("Angle")
         self.options2_layout.addWidget(self.input_angle, 5, 0)
         
@@ -223,12 +225,12 @@ class WaterfallTabView(QWidget):
         self.angle_input = QLineEdit()
         self.angle_input.setPlaceholderText("각도 (30)")
         self.angle_input.setStyleSheet("background-color: lightgray; color: black;")
-        self.angle_input.setMaximumSize(129, 27)
+        self.angle_input.setMaximumSize(*WidgetSizes.option_control())
         self.options2_layout.addWidget(self.angle_input, 5, 1)
         
         # Plot Waterfall button
         self.plot_waterfall_button = QPushButton("Plot Waterfall")
-        self.plot_waterfall_button.setMaximumSize(129, 27)
+        self.plot_waterfall_button.setMaximumSize(*WidgetSizes.option_control())
         self.options2_layout.addWidget(self.plot_waterfall_button)
         
         # 레이아웃 설정
@@ -260,24 +262,24 @@ class WaterfallTabView(QWidget):
         self.x_scale_layout.addWidget(self.auto_scale_x_2)
         
         self.water_x_autoscale = QPushButton("Auto Scale")
-        self.water_x_autoscale.setMaximumSize(100, 31)
+        self.water_x_autoscale.setMaximumSize(*WidgetSizes.axis_button())
         self.x_scale_layout.addWidget(self.water_x_autoscale)
         
         # X Min/Max inputs and Set button
         self.x_min_input2 = QLineEdit()
-        self.x_min_input2.setMaximumSize(70, 31)
+        self.x_min_input2.setMaximumSize(*WidgetSizes.axis_input())
         self.x_min_input2.setPlaceholderText("X min")
         self.x_min_input2.setStyleSheet("background-color: lightgray; color: black;")
         self.x_scale_layout2.addWidget(self.x_min_input2)
         
         self.x_max_input2 = QLineEdit()
-        self.x_max_input2.setMaximumSize(70, 31)
+        self.x_max_input2.setMaximumSize(*WidgetSizes.axis_input())
         self.x_max_input2.setPlaceholderText("X max")
         self.x_max_input2.setStyleSheet("background-color: lightgray; color: black;")
         self.x_scale_layout2.addWidget(self.x_max_input2)
         
         self.water_x_set = QPushButton("Set")
-        self.water_x_set.setMaximumSize(70, 31)
+        self.water_x_set.setMaximumSize(*WidgetSizes.axis_input())
         self.x_scale_layout2.addWidget(self.water_x_set)
         
         # Z축 컨트롤
@@ -290,24 +292,24 @@ class WaterfallTabView(QWidget):
         self.z_scale_layout.addWidget(self.auto_scale_z)
         
         self.water_z_autoscale = QPushButton("Auto Scale")
-        self.water_z_autoscale.setMaximumSize(100, 31)
+        self.water_z_autoscale.setMaximumSize(*WidgetSizes.axis_button())
         self.z_scale_layout.addWidget(self.water_z_autoscale)
         
         # Z Min/Max inputs and Set button
         self.z_min_input = QLineEdit()
-        self.z_min_input.setMaximumSize(70, 31)
+        self.z_min_input.setMaximumSize(*WidgetSizes.axis_input())
         self.z_min_input.setPlaceholderText("Z min")
         self.z_min_input.setStyleSheet("background-color: lightgray; color: black;")
         self.z_scale_layout2.addWidget(self.z_min_input)
         
         self.z_max_input = QLineEdit()
-        self.z_max_input.setMaximumSize(70, 31)
+        self.z_max_input.setMaximumSize(*WidgetSizes.axis_input())
         self.z_max_input.setPlaceholderText("Z max")
         self.z_max_input.setStyleSheet("background-color: lightgray; color: black;")
         self.z_scale_layout2.addWidget(self.z_max_input)
         
         self.water_z_set = QPushButton("Set")
-        self.water_z_set.setMaximumSize(70, 31)
+        self.water_z_set.setMaximumSize(*WidgetSizes.axis_input())
         self.z_scale_layout2.addWidget(self.water_z_set)
         
         # 모든 스케일 레이아웃 추가
@@ -326,7 +328,7 @@ class WaterfallTabView(QWidget):
         self.waterfall_canvas = FigureCanvas(self.waterfall_figure)
         self.waterfall_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.waterfall_ax = self.waterfall_figure.add_subplot(111)
-        self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=7)
+        self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=PlotFontSizes.TITLE)
         
         self.waterfall_graph_layout.addWidget(self.waterfall_canvas)
     
@@ -444,7 +446,7 @@ class WaterfallTabView(QWidget):
     def clear_plot(self):
         """워터폴 플롯을 초기화합니다."""
         self.waterfall_ax.clear()
-        self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=7)
+        self.waterfall_ax.set_title("Waterfall Spectrum", fontsize=PlotFontSizes.TITLE)
         self.waterfall_canvas.draw()
     
     def set_files(self, files: List[str]):

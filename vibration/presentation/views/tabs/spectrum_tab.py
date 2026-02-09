@@ -15,6 +15,8 @@ from PyQt5.QtCore import pyqtSignal, Qt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import WidgetSizes, PlotFontSizes
+
 
 VIEW_TYPE_LABELS = {
     'ACC': 'Vibration Acceleration\n(m/s², RMS)',
@@ -89,8 +91,8 @@ class SpectrumTabView(QWidget):
         button_layout2.addWidget(self.deselect_all_btn)
         
         self.Querry_list = QListWidget()
-        self.Querry_list.setMinimumWidth(300)
-        self.Querry_list.setMaximumWidth(300)
+        self.Querry_list.setMinimumWidth(WidgetSizes.file_list_width())
+        self.Querry_list.setMaximumWidth(WidgetSizes.file_list_width())
         self.Querry_list.setSelectionMode(QAbstractItemView.ExtendedSelection)
         
         self.lift_layout.addLayout(checksBox, 0, 0)
@@ -129,72 +131,72 @@ class SpectrumTabView(QWidget):
         layout.setSpacing(0)
         
         self.Sample_rate = QTextBrowser()
-        self.Sample_rate.setMaximumSize(113, 27)
+        self.Sample_rate.setMaximumSize(*WidgetSizes.meta_label())
         self.Sample_rate.setHtml("Sampling:")
         layout.addWidget(self.Sample_rate, 0, 0)
         
         self.Duration = QTextBrowser()
-        self.Duration.setMaximumSize(113, 27)
+        self.Duration.setMaximumSize(*WidgetSizes.meta_label())
         self.Duration.setHtml("Record Length:")
         layout.addWidget(self.Duration, 1, 0)
         
         self.Rest_time = QTextBrowser()
-        self.Rest_time.setMaximumSize(113, 27)
+        self.Rest_time.setMaximumSize(*WidgetSizes.meta_label())
         self.Rest_time.setHtml("Rest time:")
         layout.addWidget(self.Rest_time, 2, 0)
         
         self.IEPE = QTextBrowser()
-        self.IEPE.setMaximumSize(113, 27)
+        self.IEPE.setMaximumSize(*WidgetSizes.meta_label())
         self.IEPE.setHtml("IEPE enable:")
         layout.addWidget(self.IEPE, 3, 0)
         
         self.Channel = QTextBrowser()
-        self.Channel.setMaximumSize(113, 27)
+        self.Channel.setMaximumSize(*WidgetSizes.meta_label())
         self.Channel.setHtml("Channel:")
         layout.addWidget(self.Channel, 4, 0)
         
         self.Sensitivity = QTextBrowser()
-        self.Sensitivity.setMaximumSize(113, 27)
+        self.Sensitivity.setMaximumSize(*WidgetSizes.meta_label())
         self.Sensitivity.setHtml("Sensitivity:")
         layout.addWidget(self.Sensitivity, 5, 0)
         
         self.Sensitivity2 = QTextBrowser()
-        self.Sensitivity2.setMaximumSize(113, 27)
+        self.Sensitivity2.setMaximumSize(*WidgetSizes.meta_label())
         self.Sensitivity2.setHtml("Sensitivity_edit:")
         layout.addWidget(self.Sensitivity2, 6, 0)
         
         self.Sample_rate_view = QTextBrowser()
-        self.Sample_rate_view.setMaximumSize(113, 27)
+        self.Sample_rate_view.setMaximumSize(*WidgetSizes.meta_label())
         self.Sample_rate_view.setHtml("")
         layout.addWidget(self.Sample_rate_view, 0, 1)
         
         self.Duration_view = QTextBrowser()
-        self.Duration_view.setMaximumSize(113, 27)
+        self.Duration_view.setMaximumSize(*WidgetSizes.meta_label())
         self.Duration_view.setHtml("")
         layout.addWidget(self.Duration_view, 1, 1)
         
         self.Rest_time_view = QTextBrowser()
-        self.Rest_time_view.setMaximumSize(113, 27)
+        self.Rest_time_view.setMaximumSize(*WidgetSizes.meta_label())
         self.Rest_time_view.setHtml("")
         layout.addWidget(self.Rest_time_view, 2, 1)
         
         self.IEPE_view = QTextBrowser()
-        self.IEPE_view.setMaximumSize(113, 27)
+        self.IEPE_view.setMaximumSize(*WidgetSizes.meta_label())
         self.IEPE_view.setHtml("")
         layout.addWidget(self.IEPE_view, 3, 1)
         
         self.Channel_view = QTextBrowser()
-        self.Channel_view.setMaximumSize(113, 27)
+        self.Channel_view.setMaximumSize(*WidgetSizes.meta_label())
         self.Channel_view.setHtml("")
         layout.addWidget(self.Channel_view, 4, 1)
         
         self.Sensitivity_view = QTextBrowser()
-        self.Sensitivity_view.setMaximumSize(113, 27)
+        self.Sensitivity_view.setMaximumSize(*WidgetSizes.meta_label())
         self.Sensitivity_view.setHtml("")
         layout.addWidget(self.Sensitivity_view, 5, 1)
         
         self.Sensitivity_edit = QLineEdit()
-        self.Sensitivity_edit.setMaximumSize(113, 27)
+        self.Sensitivity_edit.setMaximumSize(*WidgetSizes.meta_label())
         self.Sensitivity_edit.setPlaceholderText("Edit Sensitivity")
         self.Sensitivity_edit.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.Sensitivity_edit, 6, 1)
@@ -212,23 +214,23 @@ class SpectrumTabView(QWidget):
         layout.setSpacing(0)
         
         self.Plot_Options = QTextBrowser()
-        self.Plot_Options.setMaximumSize(136, 27)
+        self.Plot_Options.setMaximumSize(*WidgetSizes.spec_control())
         self.Plot_Options.setHtml("FFT Options")
         layout.addWidget(self.Plot_Options, 0, 0)
         
         self.textBrowser_15 = QTextBrowser()
-        self.textBrowser_15.setMaximumSize(136, 27)
+        self.textBrowser_15.setMaximumSize(*WidgetSizes.spec_control())
         self.textBrowser_15.setHtml("Δf:")
         layout.addWidget(self.textBrowser_15, 1, 0)
         
         self.Hz = QTextEdit()
         self.Hz.setPlaceholderText("")
         self.Hz.setStyleSheet("background-color: lightgray;color: black;")
-        self.Hz.setMaximumSize(136, 27)
+        self.Hz.setMaximumSize(*WidgetSizes.spec_control())
         layout.addWidget(self.Hz, 1, 1)
         
         self.textBrowser_16 = QTextBrowser()
-        self.textBrowser_16.setMaximumSize(136, 27)
+        self.textBrowser_16.setMaximumSize(*WidgetSizes.spec_control())
         self.textBrowser_16.setHtml("Windown Function:")
         layout.addWidget(self.textBrowser_16, 2, 0)
         
@@ -237,11 +239,11 @@ class SpectrumTabView(QWidget):
         self.Function.addItem("Rectangular")
         self.Function.addItem("Hanning")
         self.Function.addItem("Flattop")
-        self.Function.setMaximumSize(136, 27)
+        self.Function.setMaximumSize(*WidgetSizes.spec_control())
         layout.addWidget(self.Function, 2, 1)
         
         self.textBrowser_17 = QTextBrowser()
-        self.textBrowser_17.setMaximumSize(136, 27)
+        self.textBrowser_17.setMaximumSize(*WidgetSizes.spec_control())
         self.textBrowser_17.setHtml("Overlap Factor:")
         layout.addWidget(self.textBrowser_17, 3, 0)
         
@@ -251,11 +253,11 @@ class SpectrumTabView(QWidget):
         self.Overlap_Factor.addItem("25%")
         self.Overlap_Factor.addItem("50%")
         self.Overlap_Factor.addItem("75%")
-        self.Overlap_Factor.setMaximumSize(136, 27)
+        self.Overlap_Factor.setMaximumSize(*WidgetSizes.spec_control())
         layout.addWidget(self.Overlap_Factor, 3, 1)
         
         self.select_type_convert = QTextBrowser()
-        self.select_type_convert.setMaximumSize(136, 27)
+        self.select_type_convert.setMaximumSize(*WidgetSizes.spec_control())
         self.select_type_convert.setHtml("Convert")
         layout.addWidget(self.select_type_convert, 4, 0)
         
@@ -264,16 +266,16 @@ class SpectrumTabView(QWidget):
         self.select_pytpe.addItem("ACC", 1)
         self.select_pytpe.addItem("VEL", 2)
         self.select_pytpe.addItem("DIS", 3)
-        self.select_pytpe.setMaximumSize(136, 27)
+        self.select_pytpe.setMaximumSize(*WidgetSizes.spec_control())
         layout.addWidget(self.select_pytpe, 4, 1)
         
         self.plot_button = QPushButton("Plot")
-        self.plot_button.setMaximumSize(136, 27)
+        self.plot_button.setMaximumSize(*WidgetSizes.spec_control())
         self.plot_button.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.plot_button, 5, 0)
         
         self.next_button = QPushButton("Next")
-        self.next_button.setMaximumSize(136, 27)
+        self.next_button.setMaximumSize(*WidgetSizes.spec_control())
         self.next_button.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.next_button, 5, 1)
         
@@ -298,7 +300,7 @@ class SpectrumTabView(QWidget):
         self.wavecanvas = FigureCanvas(self.waveform_figure)
         self.wavecanvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.waveax = self.waveform_figure.add_subplot(111)
-        self.waveax.set_title("Waveform", fontsize=7)
+        self.waveax.set_title("Waveform", fontsize=PlotFontSizes.TITLE)
         self.wavecanvas.setFocusPolicy(Qt.StrongFocus)
         
         self.figure = Figure(figsize=(10, 4), dpi=dpi)
@@ -306,7 +308,7 @@ class SpectrumTabView(QWidget):
         self.canvas = FigureCanvas(self.figure)
         self.canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.ax = self.figure.add_subplot(111)
-        self.ax.set_title("Vibration Spectrum", fontsize=7)
+        self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
         self.canvas.setFocusPolicy(Qt.ClickFocus)
         
         self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
@@ -357,7 +359,7 @@ class SpectrumTabView(QWidget):
         x_layout.addWidget(auto_x)
         
         x_autoscale = QPushButton("Auto Scale")
-        x_autoscale.setMaximumSize(100, 31)
+        x_autoscale.setMaximumSize(*WidgetSizes.axis_button())
         x_layout.addWidget(x_autoscale)
         
         auto_y = QCheckBox("Auto Y")
@@ -365,39 +367,39 @@ class SpectrumTabView(QWidget):
         y_layout.addWidget(auto_y)
         
         y_autoscale = QPushButton("Auto Scale")
-        y_autoscale.setMaximumSize(100, 31)
+        y_autoscale.setMaximumSize(*WidgetSizes.axis_button())
         y_layout.addWidget(y_autoscale)
         
         x_min_input = QLineEdit()
         x_min_input.setPlaceholderText("X min")
-        x_min_input.setMaximumSize(70, 31)
+        x_min_input.setMaximumSize(*WidgetSizes.axis_input())
         x_min_input.setStyleSheet("background-color: lightgray;color: black;")
         x_layout2.addWidget(x_min_input)
         
         x_max_input = QLineEdit()
         x_max_input.setPlaceholderText("X max")
-        x_max_input.setMaximumSize(70, 31)
+        x_max_input.setMaximumSize(*WidgetSizes.axis_input())
         x_max_input.setStyleSheet("background-color: lightgray;color: black;")
         x_layout2.addWidget(x_max_input)
         
         x_set = QPushButton("Set")
-        x_set.setMaximumSize(70, 31)
+        x_set.setMaximumSize(*WidgetSizes.axis_input())
         x_layout2.addWidget(x_set)
         
         y_min_input = QLineEdit()
         y_min_input.setPlaceholderText("Y min")
-        y_min_input.setMaximumSize(70, 31)
+        y_min_input.setMaximumSize(*WidgetSizes.axis_input())
         y_min_input.setStyleSheet("background-color: lightgray;color: black;")
         y_layout2.addWidget(y_min_input)
         
         y_max_input = QLineEdit()
         y_max_input.setPlaceholderText("Y max")
-        y_max_input.setMaximumSize(70, 31)
+        y_max_input.setMaximumSize(*WidgetSizes.axis_input())
         y_max_input.setStyleSheet("background-color: lightgray;color: black;")
         y_layout2.addWidget(y_max_input)
         
         y_set = QPushButton("Set")
-        y_set.setMaximumSize(70, 31)
+        y_set.setMaximumSize(*WidgetSizes.axis_input())
         y_layout2.addWidget(y_set)
         
         layout.addLayout(x_layout)
@@ -442,7 +444,7 @@ class SpectrumTabView(QWidget):
                       label: str = '', color_index: int = 0, clear: bool = True):
         if clear:
             self.ax.clear()
-            self.ax.set_title("Vibration Spectrum", fontsize=7)
+            self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
             self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
             self.data_dict.clear()
         
@@ -457,14 +459,14 @@ class SpectrumTabView(QWidget):
         self.ax.grid(True)
         if label:
             self.ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
-                          fontsize=7, frameon=True, fancybox=True, shadow=True)
+                          fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
         self.canvas.draw_idle()
     
     def plot_waveform(self, time: List[float], amplitude: List[float],
                       label: str = '', color_index: int = 0, clear: bool = True):
         if clear:
             self.waveax.clear()
-            self.waveax.set_title("Waveform", fontsize=7)
+            self.waveax.set_title("Waveform", fontsize=PlotFontSizes.TITLE)
         
         color = PLOT_COLORS[color_index % len(PLOT_COLORS)]
         self.waveax.plot(time, amplitude, color=color, linewidth=0.5, label=label, alpha=0.8)
@@ -473,7 +475,7 @@ class SpectrumTabView(QWidget):
         self.waveax.grid(True)
         if label:
             self.waveax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
-                             fontsize=7, frameon=True, fancybox=True, shadow=True)
+                             fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
         self.wavecanvas.draw_idle()
     
     def set_view_type(self, view_type: str):
@@ -481,13 +483,13 @@ class SpectrumTabView(QWidget):
     
     def clear_plots(self):
         self.ax.clear()
-        self.ax.set_title("Vibration Spectrum", fontsize=7)
+        self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
         self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
         self.markers.clear()
         self.data_dict.clear()
         self.canvas.draw()
         self.waveax.clear()
-        self.waveax.set_title("Waveform", fontsize=7)
+        self.waveax.set_title("Waveform", fontsize=PlotFontSizes.TITLE)
         self.wavecanvas.draw()
     
     def set_files(self, files: List[str]):
@@ -602,7 +604,7 @@ class SpectrumTabView(QWidget):
     def _add_marker(self, x: float, y: float):
         marker, = self.ax.plot([x], [y], 'ro', markersize=8, zorder=10)
         label = self.ax.text(x, y, f'  ({x:.2f}, {y:.2e})', 
-                            fontsize=7, color='red', 
+                            fontsize=PlotFontSizes.MARKER_LABEL, color='red', 
                             verticalalignment='bottom')
         self.markers.append((marker, label))
         self.canvas.draw_idle()

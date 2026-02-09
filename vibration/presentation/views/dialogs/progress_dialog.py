@@ -7,6 +7,8 @@ cn_3F_trend_optimized.py에서 모듈화 아키텍처를 위해 추출.
 from PyQt5.QtWidgets import QDialog, QVBoxLayout, QLabel, QProgressBar, QApplication
 from PyQt5.QtCore import Qt
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import scaled_size
+
 
 class ProgressDialog(QDialog):
     """
@@ -31,7 +33,7 @@ class ProgressDialog(QDialog):
         """
         super().__init__(parent)
         self.setWindowTitle("진행 상황")
-        self.setFixedSize(300, 100)
+        self.setFixedSize(*scaled_size(300, 100))
 
         self.layout = QVBoxLayout()
         self.label = QLabel("파일 처리 중...")

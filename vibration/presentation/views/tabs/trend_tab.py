@@ -19,6 +19,8 @@ from PyQt5.QtCore import pyqtSignal, Qt
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import WidgetSizes, PlotFontSizes
+
 
 VIEW_TYPE_LABELS = {
     'ACC': 'Vibration Acceleration\n(m/s², RMS)',
@@ -96,8 +98,8 @@ class TrendTabView(QWidget):
         buttonall_layout.addWidget(self.deselect_all_btn3)
         
         self.Querry_list3 = QListWidget()
-        self.Querry_list3.setMinimumWidth(300)
-        self.Querry_list3.setMaximumWidth(300)
+        self.Querry_list3.setMinimumWidth(WidgetSizes.file_list_width())
+        self.Querry_list3.setMaximumWidth(WidgetSizes.file_list_width())
         self.Querry_list3.setSelectionMode(QAbstractItemView.ExtendedSelection)
         
         self.data_layout.addLayout(checksBox2, 0, 0)
@@ -112,7 +114,7 @@ class TrendTabView(QWidget):
         self.alloption_layout.setContentsMargins(0, 0, 0, 0)
         
         self.Plot_Options_3 = QTextBrowser()
-        self.Plot_Options_3.setMaximumSize(129, 27)
+        self.Plot_Options_3.setMaximumSize(*WidgetSizes.option_control())
         self.Plot_Options_3.setHtml("FFT Options")
         self.alloption_layout.addWidget(self.Plot_Options_3, 0, 0)
         
@@ -126,18 +128,18 @@ class TrendTabView(QWidget):
         layout.setSpacing(0)
         
         self.textBrowser_30 = QTextBrowser()
-        self.textBrowser_30.setMaximumSize(129, 27)
+        self.textBrowser_30.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_30.setHtml("Δf:")
         layout.addWidget(self.textBrowser_30, 0, 0)
         
         self.Hz_3 = QTextEdit()
         self.Hz_3.setPlaceholderText("Hz")
         self.Hz_3.setStyleSheet("background-color: lightgray;color: black;")
-        self.Hz_3.setMaximumSize(129, 27)
+        self.Hz_3.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.Hz_3, 0, 1)
         
         self.textBrowser_31 = QTextBrowser()
-        self.textBrowser_31.setMaximumSize(129, 27)
+        self.textBrowser_31.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_31.setHtml("Windown Function:")
         layout.addWidget(self.textBrowser_31, 1, 0)
         
@@ -146,16 +148,16 @@ class TrendTabView(QWidget):
         self.Function_3.addItem("Rectangular")
         self.Function_3.addItem("Hanning")
         self.Function_3.addItem("Flattop")
-        self.Function_3.setMaximumSize(129, 27)
+        self.Function_3.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.Function_3, 1, 1)
         
         self.plot_button = QPushButton("Calculation && Plot")
-        self.plot_button.setMaximumSize(129, 27)
+        self.plot_button.setMaximumSize(*WidgetSizes.option_control())
         self.plot_button.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.plot_button, 1, 2)
         
         self.textBrowser_32 = QTextBrowser()
-        self.textBrowser_32.setMaximumSize(129, 27)
+        self.textBrowser_32.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_32.setHtml("Overlap Factor:")
         layout.addWidget(self.textBrowser_32, 2, 0)
         
@@ -165,16 +167,16 @@ class TrendTabView(QWidget):
         self.Overlap_Factor_3.addItem("25%")
         self.Overlap_Factor_3.addItem("50%")
         self.Overlap_Factor_3.addItem("75%")
-        self.Overlap_Factor_3.setMaximumSize(129, 27)
+        self.Overlap_Factor_3.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.Overlap_Factor_3, 2, 1)
         
         self.call_button = QPushButton("Load Data && Plot")
-        self.call_button.setMaximumSize(129, 27)
+        self.call_button.setMaximumSize(*WidgetSizes.option_control())
         self.call_button.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.call_button, 2, 2)
         
         self.select_type_convert3 = QTextBrowser()
-        self.select_type_convert3.setMaximumSize(129, 27)
+        self.select_type_convert3.setMaximumSize(*WidgetSizes.option_control())
         self.select_type_convert3.setHtml("Convert")
         layout.addWidget(self.select_type_convert3, 3, 0)
         
@@ -183,27 +185,27 @@ class TrendTabView(QWidget):
         self.select_pytpe3.addItem("ACC", 1)
         self.select_pytpe3.addItem("VEL", 2)
         self.select_pytpe3.addItem("DIS", 3)
-        self.select_pytpe3.setMaximumSize(129, 27)
+        self.select_pytpe3.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.select_pytpe3, 3, 1)
         
         self.save_button = QPushButton("Data Extraction")
-        self.save_button.setMaximumSize(129, 27)
+        self.save_button.setMaximumSize(*WidgetSizes.option_control())
         self.save_button.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.save_button, 3, 2)
         
         self.freq_range_label = QTextBrowser()
-        self.freq_range_label.setMaximumSize(129, 27)
+        self.freq_range_label.setMaximumSize(*WidgetSizes.option_control())
         self.freq_range_label.setHtml("BandLimit")
         layout.addWidget(self.freq_range_label, 4, 0)
         
         self.freq_range_inputmin = QLineEdit("")
-        self.freq_range_inputmin.setMaximumSize(129, 27)
+        self.freq_range_inputmin.setMaximumSize(*WidgetSizes.option_control())
         self.freq_range_inputmin.setPlaceholderText("MIN")
         self.freq_range_inputmin.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.freq_range_inputmin, 4, 1)
         
         self.freq_range_inputmax = QLineEdit("")
-        self.freq_range_inputmax.setMaximumSize(129, 27)
+        self.freq_range_inputmax.setMaximumSize(*WidgetSizes.option_control())
         self.freq_range_inputmax.setPlaceholderText("MAX")
         self.freq_range_inputmax.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.freq_range_inputmax, 4, 2)
@@ -231,7 +233,7 @@ class TrendTabView(QWidget):
         self.trend_canvas = FigureCanvas(self.trend_figure)
         self.trend_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.trend_ax = self.trend_figure.add_subplot(111)
-        self.trend_ax.set_title("Overall RMS Trend", fontsize=7)
+        self.trend_ax.set_title("Overall RMS Trend", fontsize=PlotFontSizes.TITLE)
         self.trend_canvas.setFocusPolicy(Qt.ClickFocus)
         
         trend_graph_layout.addWidget(self.trend_canvas)
@@ -247,17 +249,17 @@ class TrendTabView(QWidget):
         layout = QVBoxLayout()
         
         self.data_list_label = QTextBrowser()
-        self.data_list_label.setMaximumSize(175, 31)
+        self.data_list_label.setMaximumSize(*WidgetSizes.data_list_label())
         self.data_list_label.setHtml("Pick Data List")
         
         self.data_list_text = QTextEdit()
-        self.data_list_text.setMaximumSize(175, 900)
+        self.data_list_text.setMaximumSize(*WidgetSizes.data_list_text())
         self.data_list_text.setReadOnly(True)
         initial_text = "\n".join(["Ch1", "-", "Ch2", "-", "Ch3", "-", "Ch4", "-", "Ch5", "-", "Ch6", "-"])
         self.data_list_text.setText(initial_text)
         
         self.data_list_save_btn = QPushButton("List Save")
-        self.data_list_save_btn.setMaximumSize(175, 31)
+        self.data_list_save_btn.setMaximumSize(*WidgetSizes.data_list_label())
         
         layout.addWidget(self.data_list_label, 1)
         layout.addWidget(self.data_list_text, 2)
@@ -304,7 +306,7 @@ class TrendTabView(QWidget):
     def plot_trend(self, channel_data: dict, clear: bool = True):
         if clear:
             self.trend_ax.clear()
-            self.trend_ax.set_title("Overall RMS Trend", fontsize=7)
+            self.trend_ax.set_title("Overall RMS Trend", fontsize=PlotFontSizes.TITLE)
         
         for idx, (ch, data) in enumerate(sorted(channel_data.items())):
             color = CHANNEL_COLORS[idx % len(CHANNEL_COLORS)]
@@ -312,12 +314,12 @@ class TrendTabView(QWidget):
                              label=f"Channel {ch}", color=color,
                              marker='o', markersize=2, linewidth=0.5)
         
-        self.trend_ax.set_xlabel('Date & Time', fontsize=7)
-        self.trend_ax.set_ylabel(VIEW_TYPE_LABELS.get(self._current_view_type, ''), fontsize=7)
+        self.trend_ax.set_xlabel('Date & Time', fontsize=PlotFontSizes.LABEL)
+        self.trend_ax.set_ylabel(VIEW_TYPE_LABELS.get(self._current_view_type, ''), fontsize=PlotFontSizes.LABEL)
         self.trend_ax.set_facecolor('white')
         self.trend_ax.grid(True, color='gray', linestyle='--', linewidth=0.5, alpha=0.3)
         self.trend_ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
-                           fontsize=7, frameon=True, fancybox=True, shadow=True)
+                           fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
         self.trend_canvas.draw_idle()
     
     def set_view_type(self, view_type: str):
@@ -325,7 +327,7 @@ class TrendTabView(QWidget):
     
     def clear_plot(self):
         self.trend_ax.clear()
-        self.trend_ax.set_title("Overall RMS Trend", fontsize=7)
+        self.trend_ax.set_title("Overall RMS Trend", fontsize=PlotFontSizes.TITLE)
         self.trend_canvas.draw()
     
     def set_files(self, files: List[str]):
@@ -451,7 +453,7 @@ class TrendTabView(QWidget):
             textcoords="offset points",
             xytext=(10, 10),
             ha='left',
-            fontsize=7,
+            fontsize=PlotFontSizes.ANNOTATION,
             bbox=dict(boxstyle="round,pad=0.3", edgecolor="black",
                      facecolor="lightyellow", alpha=0.8)
         )

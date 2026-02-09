@@ -19,6 +19,8 @@ from PyQt5.QtCore import pyqtSignal, Qt, QEvent
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import WidgetSizes, PlotFontSizes
+
 
 VIEW_TYPE_LABELS = {
     'ACC': 'Peak Acceleration\n(m/s², RMS)',
@@ -101,8 +103,8 @@ class PeakTabView(QWidget):
         buttonall2_layout.addWidget(self.deselect_all_btn4)
         
         self.Querry_list4 = QListWidget()
-        self.Querry_list4.setMinimumWidth(300)
-        self.Querry_list4.setMaximumWidth(300)
+        self.Querry_list4.setMinimumWidth(WidgetSizes.file_list_width())
+        self.Querry_list4.setMaximumWidth(WidgetSizes.file_list_width())
         self.Querry_list4.setSelectionMode(QAbstractItemView.ExtendedSelection)
         
         self.data2_layout.addLayout(checksBox3)
@@ -117,7 +119,7 @@ class PeakTabView(QWidget):
         self.alloption2_layout.setContentsMargins(0, 0, 0, 0)
         
         self.Plot_Options_4 = QTextBrowser()
-        self.Plot_Options_4.setMaximumSize(129, 27)
+        self.Plot_Options_4.setMaximumSize(*WidgetSizes.option_control())
         self.Plot_Options_4.setHtml("FFT Options")
         self.alloption2_layout.addWidget(self.Plot_Options_4, 0, 0)
         
@@ -130,18 +132,18 @@ class PeakTabView(QWidget):
         layout.setSpacing(0)
         
         self.textBrowser_33 = QTextBrowser()
-        self.textBrowser_33.setMaximumSize(129, 27)
+        self.textBrowser_33.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_33.setHtml("Δf:")
         layout.addWidget(self.textBrowser_33, 0, 0)
         
         self.Hz_4 = QTextEdit()
         self.Hz_4.setPlaceholderText("Hz")
         self.Hz_4.setStyleSheet("background-color: lightgray;color: black;")
-        self.Hz_4.setMaximumSize(129, 27)
+        self.Hz_4.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.Hz_4, 0, 1)
         
         self.textBrowser_34 = QTextBrowser()
-        self.textBrowser_34.setMaximumSize(129, 27)
+        self.textBrowser_34.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_34.setHtml("Windown Function:")
         layout.addWidget(self.textBrowser_34, 1, 0)
         
@@ -150,11 +152,11 @@ class PeakTabView(QWidget):
         self.Function_4.addItem("Rectangular")
         self.Function_4.addItem("Hanning")
         self.Function_4.addItem("Flattop")
-        self.Function_4.setMaximumSize(129, 27)
+        self.Function_4.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.Function_4, 1, 1)
         
         self.textBrowser_35 = QTextBrowser()
-        self.textBrowser_35.setMaximumSize(129, 27)
+        self.textBrowser_35.setMaximumSize(*WidgetSizes.option_control())
         self.textBrowser_35.setHtml("Overlap Factor:")
         layout.addWidget(self.textBrowser_35, 2, 0)
         
@@ -164,16 +166,16 @@ class PeakTabView(QWidget):
         self.Overlap_Factor_4.addItem("25%")
         self.Overlap_Factor_4.addItem("50%")
         self.Overlap_Factor_4.addItem("75%")
-        self.Overlap_Factor_4.setMaximumSize(129, 27)
+        self.Overlap_Factor_4.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.Overlap_Factor_4, 2, 1)
         
         self.plot_button2 = QPushButton("Plot")
-        self.plot_button2.setMaximumSize(129, 27)
+        self.plot_button2.setMaximumSize(*WidgetSizes.option_control())
         self.plot_button2.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.plot_button2, 2, 2)
         
         self.select_type_convert4 = QTextBrowser()
-        self.select_type_convert4.setMaximumSize(129, 27)
+        self.select_type_convert4.setMaximumSize(*WidgetSizes.option_control())
         self.select_type_convert4.setHtml("Convert")
         layout.addWidget(self.select_type_convert4, 3, 0)
         
@@ -182,27 +184,27 @@ class PeakTabView(QWidget):
         self.select_pytpe4.addItem("ACC", 1)
         self.select_pytpe4.addItem("VEL", 2)
         self.select_pytpe4.addItem("DIS", 3)
-        self.select_pytpe4.setMaximumSize(129, 27)
+        self.select_pytpe4.setMaximumSize(*WidgetSizes.option_control())
         layout.addWidget(self.select_pytpe4, 3, 1)
         
         self.save2_button = QPushButton("Save")
-        self.save2_button.setMaximumSize(129, 27)
+        self.save2_button.setMaximumSize(*WidgetSizes.option_control())
         self.save2_button.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.save2_button, 3, 2)
         
         self.freq_range_label2 = QTextBrowser()
-        self.freq_range_label2.setMaximumSize(129, 27)
+        self.freq_range_label2.setMaximumSize(*WidgetSizes.option_control())
         self.freq_range_label2.setHtml("Band Limit (Hz):")
         layout.addWidget(self.freq_range_label2, 4, 0)
         
         self.freq_range_inputmin2 = QLineEdit("")
-        self.freq_range_inputmin2.setMaximumSize(129, 27)
+        self.freq_range_inputmin2.setMaximumSize(*WidgetSizes.option_control())
         self.freq_range_inputmin2.setPlaceholderText("MIN")
         self.freq_range_inputmin2.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.freq_range_inputmin2, 4, 1)
         
         self.freq_range_inputmax2 = QLineEdit("")
-        self.freq_range_inputmax2.setMaximumSize(129, 27)
+        self.freq_range_inputmax2.setMaximumSize(*WidgetSizes.option_control())
         self.freq_range_inputmax2.setPlaceholderText("MAX")
         self.freq_range_inputmax2.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.freq_range_inputmax2, 4, 2)
@@ -223,7 +225,7 @@ class PeakTabView(QWidget):
         self.peak_canvas = FigureCanvas(self.peak_figure)
         self.peak_canvas.setSizePolicy(QSizePolicy.Expanding, QSizePolicy.Expanding)
         self.peak_ax = self.peak_figure.add_subplot(111)
-        self.peak_ax.set_title("Band Peak Trend", fontsize=7)
+        self.peak_ax.set_title("Band Peak Trend", fontsize=PlotFontSizes.TITLE)
         self.peak_canvas.setFocusPolicy(Qt.ClickFocus)
         
         self.peak_graph_layout.addWidget(self.peak_canvas)
@@ -234,17 +236,17 @@ class PeakTabView(QWidget):
         layout = QVBoxLayout()
         
         self.data_list_label = QTextBrowser()
-        self.data_list_label.setMaximumSize(175, 31)
+        self.data_list_label.setMaximumSize(*WidgetSizes.data_list_label())
         self.data_list_label.setHtml("Pick Data List")
         
         self.data_list_text = QTextEdit()
-        self.data_list_text.setMaximumSize(175, 900)
+        self.data_list_text.setMaximumSize(*WidgetSizes.data_list_text())
         self.data_list_text.setReadOnly(True)
         initial_text = "\n".join(["Ch1", "-", "Ch2", "-", "Ch3", "-", "Ch4", "-", "Ch5", "-", "Ch6", "-"])
         self.data_list_text.setText(initial_text)
         
         self.data_list_save_btn = QPushButton("List Save")
-        self.data_list_save_btn.setMaximumSize(175, 31)
+        self.data_list_save_btn.setMaximumSize(*WidgetSizes.data_list_label())
         
         layout.addWidget(self.data_list_label, 1)
         layout.addWidget(self.data_list_text, 2)
@@ -295,7 +297,7 @@ class PeakTabView(QWidget):
     def plot_peak_trend(self, channel_data: dict, clear: bool = True):
         if clear:
             self.peak_ax.clear()
-            self.peak_ax.set_title("Band Peak Trend", fontsize=7)
+            self.peak_ax.set_title("Band Peak Trend", fontsize=PlotFontSizes.TITLE)
         
         for idx, (ch, data) in enumerate(sorted(channel_data.items())):
             color = CHANNEL_COLORS[idx % len(CHANNEL_COLORS)]
@@ -303,12 +305,12 @@ class PeakTabView(QWidget):
                              label=f"Channel {ch}", color=color,
                              marker='o', markersize=2, linewidth=0.5)
         
-        self.peak_ax.set_xlabel('Date & Time', fontsize=7)
-        self.peak_ax.set_ylabel(VIEW_TYPE_LABELS.get(self._current_view_type, ''), fontsize=7)
+        self.peak_ax.set_xlabel('Date & Time', fontsize=PlotFontSizes.LABEL)
+        self.peak_ax.set_ylabel(VIEW_TYPE_LABELS.get(self._current_view_type, ''), fontsize=PlotFontSizes.LABEL)
         self.peak_ax.set_facecolor('white')
         self.peak_ax.grid(True, color='gray', linestyle='--', linewidth=0.5, alpha=0.3)
         self.peak_ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
-                           fontsize=7, frameon=True, fancybox=True, shadow=True)
+                           fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
         self.peak_canvas.draw_idle()
     
     def set_view_type(self, view_type: str):
@@ -316,7 +318,7 @@ class PeakTabView(QWidget):
     
     def clear_plot(self):
         self.peak_ax.clear()
-        self.peak_ax.set_title("Band Peak Trend", fontsize=7)
+        self.peak_ax.set_title("Band Peak Trend", fontsize=PlotFontSizes.TITLE)
         self.peak_canvas.draw()
     
     def set_files(self, files: List[str]):
@@ -434,7 +436,7 @@ class PeakTabView(QWidget):
             textcoords="offset points",
             xytext=(10, 10),
             ha='left',
-            fontsize=7,
+            fontsize=PlotFontSizes.ANNOTATION,
             bbox=dict(boxstyle="round,pad=0.3", edgecolor="black",
                      facecolor="lightyellow", alpha=0.8)
         )

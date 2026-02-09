@@ -14,6 +14,7 @@ import numpy as np
 
 from vibration.presentation.views.tabs.waterfall_tab import WaterfallTabView
 from vibration.presentation.views.dialogs.progress_dialog import ProgressDialog
+from vibration.presentation.views.dialogs.responsive_layout_utils import PlotFontSizes
 from vibration.core.services.fft_service import FFTService, WindowType, ViewType
 from vibration.core.services.file_service import FileService
 from vibration.infrastructure.event_bus import get_event_bus
@@ -308,7 +309,7 @@ class WaterfallPresenter:
         fig.clf()
         ax = fig.add_subplot(111)
         self.view.set_axes(ax)
-        ax.set_title("Waterfall Spectrum", fontsize=7)
+        ax.set_title("Waterfall Spectrum", fontsize=PlotFontSizes.TITLE)
         
         all_frequencies = []
         all_spectra = []
@@ -395,7 +396,7 @@ class WaterfallPresenter:
                     yticks = np.linspace(ymin_plot, ymax_plot, 7)
                     ytick_labels = np.linspace(eff_z_min, eff_z_max, 7)
                     ax.set_yticks(yticks)
-                    ax.set_yticklabels([f"{val:.4f}" for val in ytick_labels], fontsize=7)
+                    ax.set_yticklabels([f"{val:.4f}" for val in ytick_labels], fontsize=PlotFontSizes.TICK)
                     ax.tick_params(axis='y', labelleft=True)
                     ax.set_ylim(0, 150)
             
@@ -418,18 +419,18 @@ class WaterfallPresenter:
         
         for y, label in zip(yticks_for_labels, labels_for_ticks):
             ax_right.text(1.02, y, label, transform=ax_right.get_yaxis_transform(),
-                         fontsize=7, va='center', ha='left')
+                         fontsize=PlotFontSizes.LABEL, va='center', ha='left')
         
         view_type_str = VIEW_TYPE_MAP.get(view_type, 'ACC')
         zlabel = VIEW_TYPE_LABELS.get(view_type_str, 'RMS Vibration')
-        ax.set_ylabel(zlabel, fontsize=7)
-        ax.set_xlabel("Frequency (Hz)", fontsize=7)
+        ax.set_ylabel(zlabel, fontsize=PlotFontSizes.LABEL)
+        ax.set_xlabel("Frequency (Hz)", fontsize=PlotFontSizes.LABEL)
         
         fig.patch.set_facecolor('white')
         ax.set_facecolor('white')
         ax.tick_params(axis='y', labelrotation=0)
-        ax.tick_params(axis='x', labelsize=7)
-        ax.tick_params(axis='y', labelsize=7)
+        ax.tick_params(axis='x', labelsize=PlotFontSizes.TICK)
+        ax.tick_params(axis='y', labelsize=PlotFontSizes.TICK)
         
         self._add_grid_lines(ax, eff_x_min, eff_x_max, x_scale)
         

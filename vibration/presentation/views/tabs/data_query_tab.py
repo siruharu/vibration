@@ -13,6 +13,7 @@ from PyQt5.QtWidgets import (
 from PyQt5.QtCore import pyqtSignal, Qt
 
 from vibration.presentation.models.file_list_model import FileListModel
+from vibration.presentation.views.dialogs.responsive_layout_utils import WidgetSizes
 
 
 class DataQueryTabView(QWidget):
@@ -41,7 +42,7 @@ class DataQueryTabView(QWidget):
         top_layout.addWidget(self.load_btn)
         
         self.directory_display = QTextBrowser()
-        self.directory_display.setFixedHeight(50)
+        self.directory_display.setFixedHeight(WidgetSizes.dir_display_height())
         top_layout.addWidget(self.directory_display, stretch=1)
         
         self.choose_btn = QPushButton("Choose")

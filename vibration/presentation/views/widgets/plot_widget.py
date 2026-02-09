@@ -12,6 +12,8 @@ from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg
 from matplotlib.figure import Figure
 import matplotlib.pyplot as plt
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import PlotFontSizes
+
 
 class PlotWidget(QWidget):
     """
@@ -28,7 +30,7 @@ class PlotWidget(QWidget):
     plot_clicked = pyqtSignal(float, float)
     plot_updated = pyqtSignal()
     
-    DEFAULT_STYLE = {'title_size': 12, 'label_size': 10, 'tick_size': 9, 'grid_alpha': 0.3, 'grid_style': '--'}
+    DEFAULT_STYLE = {'title_size': PlotFontSizes.TITLE, 'label_size': PlotFontSizes.LABEL, 'tick_size': PlotFontSizes.TICK, 'grid_alpha': 0.3, 'grid_style': '--'}
     
     def __init__(
         self,

@@ -5,6 +5,8 @@ import numpy as np
 from PyQt5.QtCore import QObject, pyqtSignal
 from matplotlib.axes import Axes
 
+from vibration.presentation.views.dialogs.responsive_layout_utils import PlotFontSizes
+
 
 class MarkerType(Enum):
     POINT = "point"
@@ -19,7 +21,7 @@ class MarkerManager(QObject):
     marker_cleared = pyqtSignal()
     
     DEFAULT_MARKER_STYLE = {'marker': 'o', 'color': 'red', 'markersize': 8, 'linestyle': ''}
-    DEFAULT_LABEL_STYLE = {'fontsize': 9, 'fontweight': 'bold', 'color': 'black', 'ha': 'center', 'va': 'bottom'}
+    DEFAULT_LABEL_STYLE = {'fontsize': PlotFontSizes.ANNOTATION, 'fontweight': 'bold', 'color': 'black', 'ha': 'center', 'va': 'bottom'}
     
     def __init__(self, axes: Axes, canvas: Any = None, parent: Optional[QObject] = None):
         super().__init__(parent)

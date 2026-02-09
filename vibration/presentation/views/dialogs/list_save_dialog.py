@@ -29,7 +29,9 @@ from PyQt5 import QtWidgets, QtCore, QtGui
 from .responsive_layout_utils import (
     ResponsiveLayoutMixin, 
     calculate_window_size, 
-    create_responsive_button
+    create_responsive_button,
+    PlotFontSizes,
+    APP_FONT_FAMILY
 )
 
 try:
@@ -168,13 +170,13 @@ class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
         canvas.setMinimumHeight(250)
 
         if graph_type == "waveform":
-            ax.set_title("Waveform", fontsize=7)
-            ax.set_xlabel("Time (s)", fontsize=7)
+            ax.set_title("Waveform", fontsize=PlotFontSizes.TITLE)
+            ax.set_xlabel("Time (s)", fontsize=PlotFontSizes.LABEL)
         else:
-            ax.set_title("Vibration Spectrum", fontsize=7)
-            ax.set_xlabel("Frequency (Hz)", fontsize=7)
+            ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
+            ax.set_xlabel("Frequency (Hz)", fontsize=PlotFontSizes.LABEL)
 
-        ax.tick_params(axis='both', labelsize=7)
+        ax.tick_params(axis='both', labelsize=PlotFontSizes.TICK)
         ax.grid(True)
 
         self.setup_figure_with_legend(figure, ax, rect=[0, 0, 0.88, 1])
@@ -430,21 +432,21 @@ class ListSaveDialog(QtWidgets.QDialog, ResponsiveLayoutMixin):
         self.spectrum_data_dict1[base_name] = result['spectrum']
 
         ylabel = get_view_label(result['view_type'])
-        self.tab_ax.set_ylabel(ylabel, fontsize=7)
-        self.tab_waveax.set_ylabel(ylabel, fontsize=7)
+        self.tab_ax.set_ylabel(ylabel, fontsize=PlotFontSizes.LABEL)
+        self.tab_waveax.set_ylabel(ylabel, fontsize=PlotFontSizes.LABEL)
 
     def _finalize_plot(self) -> None:
-        self.tab_waveax.set_title("Waveform", fontsize=7)
-        self.tab_waveax.set_xlabel("Time (s)", fontsize=7)
-        self.tab_waveax.legend(fontsize=7, loc='upper left', bbox_to_anchor=(1, 1))
+        self.tab_waveax.set_title("Waveform", fontsize=PlotFontSizes.TITLE)
+        self.tab_waveax.set_xlabel("Time (s)", fontsize=PlotFontSizes.LABEL)
+        self.tab_waveax.legend(fontsize=PlotFontSizes.LEGEND, loc='upper left', bbox_to_anchor=(1, 1))
         self.tab_waveax.grid(True)
-        self.tab_waveax.tick_params(axis='both', labelsize=7)
+        self.tab_waveax.tick_params(axis='both', labelsize=PlotFontSizes.TICK)
 
-        self.tab_ax.set_title("Vibration Spectrum", fontsize=7)
-        self.tab_ax.set_xlabel("Frequency (Hz)", fontsize=7)
-        self.tab_ax.legend(fontsize=7, loc='upper left', bbox_to_anchor=(1, 1))
+        self.tab_ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
+        self.tab_ax.set_xlabel("Frequency (Hz)", fontsize=PlotFontSizes.LABEL)
+        self.tab_ax.legend(fontsize=PlotFontSizes.LEGEND, loc='upper left', bbox_to_anchor=(1, 1))
         self.tab_ax.grid(True)
-        self.tab_ax.tick_params(axis='both', labelsize=7)
+        self.tab_ax.tick_params(axis='both', labelsize=PlotFontSizes.TICK)
 
         try:
             self.tab_waveform_figure.tight_layout(rect=[0, 0, 0.88, 1])

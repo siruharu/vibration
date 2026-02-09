@@ -55,6 +55,10 @@ class EventBus(QObject):
     tab_changed = pyqtSignal(str)  # 탭 이름
     view_type_changed = pyqtSignal(str)  # 뷰 타입 (ACC/VEL/DIS)
     
+    # 프로젝트 이벤트
+    project_saved = pyqtSignal(str)  # 프로젝트 저장 경로
+    project_loaded = pyqtSignal(str)  # 프로젝트 로드 경로
+    
     _instance = None
     
     def __new__(cls):

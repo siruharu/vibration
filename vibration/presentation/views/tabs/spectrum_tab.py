@@ -66,6 +66,7 @@ class SpectrumTabView(QWidget):
         self.mouse_tracking_enabled = True
         self._all_files: List[str] = []
         self._span_selector = None
+        self._batch_mode = False
         self._setup_ui()
         self._connect_signals()
     
@@ -578,48 +579,6 @@ class SpectrumTabView(QWidget):
                 return None
         return None
     
-    def _apply_auto_y_scale(self, plot_type: str):
-        """Auto Y 110% 로직 — 현재 x축 범위 내 최대 Y의 110%로 y축 설정."""
-        import numpy as np
-        
-        if plot_type == 'wave':
-            ax = self.waveax
-            canvas = self.wavecanvas
-            auto_y = self.wave_auto_y
-        else:
-            ax = self.ax
-            canvas = self.canvas
-            auto_y = self.spec_auto_y
-        
-        if not auto_y.isChecked():
-            return
-        
-        x_min, x_max = ax.get_xlim()
-        max_abs_y = 0.0
-        
-        for line in ax.get_lines():
-            x_data = np.array(line.get_xdata())
-            y_data = np.array(line.get_ydata())
-            if len(x_data) == 0 or len(y_data) == 0:
-                continue
-            mask = (x_data >= x_min) & (x_data <= x_max)
-            if not np.any(mask):
-                continue
-            y_in_range = np.abs(y_data[mask])
-            if len(y_in_range) > 0:
-                local_max = np.max(y_in_range)
-                if local_max > max_abs_y:
-                    max_abs_y = local_max
-        
-        if max_abs_y == 0.0:
-            return
-        
-        if plot_type == 'spec':
-            ax.set_ylim(0, max_abs_y * 1.10)
-        else:
-            ax.set_ylim(-max_abs_y * 1.10, max_abs_y * 1.10)
-        canvas.draw_idle()
-    
     def _on_date_filter_clicked(self):
         """날짜 필터 버튼 클릭 처리."""
         from_str = self.date_from.date().toString("yyyy-MM-dd")
@@ -698,7 +657,6 @@ class SpectrumTabView(QWidget):
         self.ax.set_ylabel(VIEW_TYPE_LABELS.get(self._current_view_type, ''))
         self.ax.grid(True)
         self._update_legend(self.ax, self.figure, self.canvas)
-        self._apply_auto_y_scale('spec')
     
     def plot_waveform(self, time: List[float], amplitude: List[float],
                       label: str = '', color_index: int = 0, clear: bool = True):
@@ -712,8 +670,21 @@ class SpectrumTabView(QWidget):
         self.waveax.set_ylabel(WAVEFORM_Y_LABELS.get(self._current_view_type, ''))
         self.waveax.grid(True)
         self._update_legend(self.waveax, self.waveform_figure, self.wavecanvas)
-        self._apply_auto_y_scale('wave')
         
+        if not self._batch_mode:
+            self._span_selector = SpanSelector(
+                self.waveax, self._on_span_selected, 'horizontal',
+                useblit=True, props=dict(alpha=0.3, facecolor='yellow'),
+                interactive=True, drag_from_anywhere=True
+            )
+    
+    def begin_batch(self):
+        self._batch_mode = True
+    
+    def end_batch(self):
+        self._batch_mode = False
+        self._update_legend(self.ax, self.figure, self.canvas)
+        self._update_legend(self.waveax, self.waveform_figure, self.wavecanvas)
         self._span_selector = SpanSelector(
             self.waveax, self._on_span_selected, 'horizontal',
             useblit=True, props=dict(alpha=0.3, facecolor='yellow'),
@@ -723,7 +694,8 @@ class SpectrumTabView(QWidget):
     def _update_legend(self, ax, figure, canvas):
         handles, labels = ax.get_legend_handles_labels()
         if not labels:
-            canvas.draw_idle()
+            if not self._batch_mode:
+                canvas.draw_idle()
             return
         
         if len(labels) <= self._MAX_LEGEND_ITEMS:
@@ -738,7 +710,8 @@ class SpectrumTabView(QWidget):
             if legend:
                 legend.remove()
             figure.set_tight_layout({'rect': [0, 0, 0.98, 1]})
-        canvas.draw_idle()
+        if not self._batch_mode:
+            canvas.draw_idle()
     
     def set_view_type(self, view_type: str):
         self._current_view_type = view_type

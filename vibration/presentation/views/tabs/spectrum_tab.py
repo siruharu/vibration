@@ -8,12 +8,13 @@ from typing import List, Optional
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QGridLayout, QVBoxLayout, QComboBox, QPushButton,
     QSplitter, QLabel, QListWidget, QAbstractItemView, QCheckBox, QTextBrowser,
-    QTextEdit, QLineEdit, QSizePolicy, QApplication
+    QTextEdit, QLineEdit, QSizePolicy, QApplication, QDateEdit, QInputDialog
 )
-from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtCore import pyqtSignal, Qt, QDate
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
+from matplotlib.widgets import SpanSelector
 
 from vibration.presentation.views.dialogs.responsive_layout_utils import WidgetSizes, PlotFontSizes
 
@@ -22,6 +23,12 @@ VIEW_TYPE_LABELS = {
     'ACC': 'Vibration Acceleration\n(m/s², RMS)',
     'VEL': 'Vibration Velocity\n(mm/s, RMS)',
     'DIS': 'Vibration Displacement\n(μm, RMS)'
+}
+
+WAVEFORM_Y_LABELS = {
+    'ACC': 'Acceleration (m/s²)',
+    'VEL': 'Velocity (mm/s)',
+    'DIS': 'Displacement (μm)'
 }
 
 PLOT_COLORS = ['b', 'g', 'r', 'c', 'm', 'y']
@@ -42,6 +49,11 @@ class SpectrumTabView(QWidget):
     view_type_changed = pyqtSignal(int)
     window_type_changed = pyqtSignal(str)
     file_clicked = pyqtSignal(str)
+    date_filter_changed = pyqtSignal(str, str)
+    refresh_requested = pyqtSignal()
+    close_all_windows_requested = pyqtSignal()
+    axis_range_changed = pyqtSignal(str, str, float, float)
+    time_range_selected = pyqtSignal(float, float)
     
     def __init__(self, parent: Optional[QWidget] = None):
         super().__init__(parent)
@@ -51,6 +63,8 @@ class SpectrumTabView(QWidget):
         self.hover_pos = None
         self.data_dict = {}
         self.mouse_tracking_enabled = True
+        self._all_files: List[str] = []
+        self._span_selector = None
         self._setup_ui()
         self._connect_signals()
     
@@ -68,6 +82,7 @@ class SpectrumTabView(QWidget):
         self.tab3_layout.setColumnStretch(1, 4)
     
     def _create_left_panel(self):
+        """좌측 패널 생성 — 체크박스, 날짜 필터, 파일 목록."""
         self.lift_layout = QGridLayout()
         
         checksBox = QGridLayout()
@@ -90,6 +105,25 @@ class SpectrumTabView(QWidget):
         self.deselect_all_btn = QPushButton("Deselect All")
         button_layout2.addWidget(self.deselect_all_btn)
         
+        date_filter_layout = QHBoxLayout()
+        self.date_from = QDateEdit()
+        self.date_from.setCalendarPopup(True)
+        self.date_from.setDisplayFormat("yyyy-MM-dd")
+        self.date_from.setDate(QDate(2000, 1, 1))
+        date_filter_layout.addWidget(QLabel("From:"))
+        date_filter_layout.addWidget(self.date_from)
+        
+        self.date_to = QDateEdit()
+        self.date_to.setCalendarPopup(True)
+        self.date_to.setDisplayFormat("yyyy-MM-dd")
+        self.date_to.setDate(QDate.currentDate())
+        date_filter_layout.addWidget(QLabel("To:"))
+        date_filter_layout.addWidget(self.date_to)
+        
+        self.date_filter_btn = QPushButton("Filter")
+        self.date_filter_btn.setStyleSheet("background-color: lightgray;color: black;")
+        date_filter_layout.addWidget(self.date_filter_btn)
+        
         self.Querry_list = QListWidget()
         self.Querry_list.setMinimumWidth(WidgetSizes.file_list_width())
         self.Querry_list.setMaximumWidth(WidgetSizes.file_list_width())
@@ -97,7 +131,8 @@ class SpectrumTabView(QWidget):
         
         self.lift_layout.addLayout(checksBox, 0, 0)
         self.lift_layout.addLayout(button_layout2, 1, 0)
-        self.lift_layout.addWidget(self.Querry_list, 2, 0)
+        self.lift_layout.addLayout(date_filter_layout, 2, 0)
+        self.lift_layout.addWidget(self.Querry_list, 3, 0)
         
         self.file_list = self.Querry_list
     
@@ -279,6 +314,16 @@ class SpectrumTabView(QWidget):
         self.next_button.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.next_button, 5, 1)
         
+        self.refresh_button = QPushButton("Refresh")
+        self.refresh_button.setMaximumSize(*WidgetSizes.spec_control())
+        self.refresh_button.setStyleSheet("background-color: lightgray;color: black;")
+        layout.addWidget(self.refresh_button, 6, 0)
+        
+        self.close_all_button = QPushButton("Close All")
+        self.close_all_button.setMaximumSize(*WidgetSizes.spec_control())
+        self.close_all_button.setStyleSheet("background-color: lightgray;color: black;")
+        layout.addWidget(self.close_all_button, 6, 1)
+        
         layout.setRowStretch(0, 1)
         layout.setRowStretch(1, 1)
         layout.setColumnStretch(0, 1)
@@ -413,9 +458,163 @@ class SpectrumTabView(QWidget):
         
         layout.addStretch(2)
         
+        if plot_type == 'wave':
+            self.wave_auto_x = auto_x
+            self.wave_auto_y = auto_y
+            self.wave_x_min = x_min_input
+            self.wave_x_max = x_max_input
+            self.wave_x_set = x_set
+            self.wave_y_min = y_min_input
+            self.wave_y_max = y_max_input
+            self.wave_y_set = y_set
+            self.wave_x_autoscale = x_autoscale
+            self.wave_y_autoscale = y_autoscale
+        elif plot_type == 'spec':
+            self.spec_auto_x = auto_x
+            self.spec_auto_y = auto_y
+            self.spec_x_min = x_min_input
+            self.spec_x_max = x_max_input
+            self.spec_x_set = x_set
+            self.spec_y_min = y_min_input
+            self.spec_y_max = y_max_input
+            self.spec_y_set = y_set
+            self.spec_x_autoscale = x_autoscale
+            self.spec_y_autoscale = y_autoscale
+        
+        x_set.clicked.connect(lambda: self._on_axis_set_clicked(plot_type, 'x', x_min_input, x_max_input))
+        y_set.clicked.connect(lambda: self._on_axis_set_clicked(plot_type, 'y', y_min_input, y_max_input))
+        x_autoscale.clicked.connect(lambda: self._on_auto_scale_clicked(plot_type, 'x'))
+        y_autoscale.clicked.connect(lambda: self._on_auto_scale_clicked(plot_type, 'y'))
+        
         widget = QWidget()
         widget.setLayout(layout)
         return widget
+    
+    def _on_axis_set_clicked(self, plot_type: str, axis: str,
+                              min_input: QLineEdit, max_input: QLineEdit):
+        """Set 버튼 클릭 시 축 범위 변경 시그널 발생."""
+        try:
+            val_min = float(min_input.text())
+            val_max = float(max_input.text())
+            if val_min < val_max:
+                self.axis_range_changed.emit(plot_type, axis, val_min, val_max)
+        except ValueError:
+            pass
+    
+    def _on_auto_scale_clicked(self, plot_type: str, axis: str):
+        """Auto Scale 버튼 클릭 시 자동 범위 적용."""
+        if plot_type == 'wave':
+            ax = self.waveax
+            canvas = self.wavecanvas
+        else:
+            ax = self.ax
+            canvas = self.canvas
+        
+        if axis == 'x':
+            ax.autoscale(enable=True, axis='x')
+        else:
+            ax.autoscale(enable=True, axis='y')
+        canvas.draw_idle()
+    
+    def _on_canvas_click(self, event, plot_type: str):
+        """캔버스 외곽 클릭 시 축 범위 입력 팝업 표시."""
+        if event.inaxes is not None:
+            return
+        
+        if plot_type == 'wave':
+            ax = self.waveax
+            fig = self.waveform_figure
+            canvas = self.wavecanvas
+        else:
+            ax = self.ax
+            fig = self.figure
+            canvas = self.canvas
+        
+        bbox = ax.get_window_extent().transformed(fig.dpi_scale_trans.inverted())
+        click_x_inch = event.x / fig.dpi
+        click_y_inch = event.y / fig.dpi
+        
+        if click_y_inch < bbox.y0:
+            text, ok = QInputDialog.getText(
+                self, "X axis range", "X axis range (min, max):"
+            )
+            if ok and text:
+                try:
+                    parts = text.split(',')
+                    val_min = float(parts[0].strip())
+                    val_max = float(parts[1].strip())
+                    if val_min < val_max:
+                        ax.set_xlim(val_min, val_max)
+                        canvas.draw_idle()
+                except (ValueError, IndexError):
+                    pass
+        elif click_x_inch < bbox.x0:
+            text, ok = QInputDialog.getText(
+                self, "Y axis range", "Y axis range (min, max):"
+            )
+            if ok and text:
+                try:
+                    parts = text.split(',')
+                    val_min = float(parts[0].strip())
+                    val_max = float(parts[1].strip())
+                    if val_min < val_max:
+                        ax.set_ylim(val_min, val_max)
+                        canvas.draw_idle()
+                except (ValueError, IndexError):
+                    pass
+    
+    def _apply_auto_y_scale(self, plot_type: str):
+        """Auto Y 110% 로직 — 현재 x축 범위 내 최대 Y의 110%로 y축 설정."""
+        import numpy as np
+        
+        if plot_type == 'wave':
+            ax = self.waveax
+            canvas = self.wavecanvas
+            auto_y = self.wave_auto_y
+        else:
+            ax = self.ax
+            canvas = self.canvas
+            auto_y = self.spec_auto_y
+        
+        if not auto_y.isChecked():
+            return
+        
+        x_min, x_max = ax.get_xlim()
+        max_abs_y = 0.0
+        
+        for line in ax.get_lines():
+            x_data = np.array(line.get_xdata())
+            y_data = np.array(line.get_ydata())
+            if len(x_data) == 0 or len(y_data) == 0:
+                continue
+            mask = (x_data >= x_min) & (x_data <= x_max)
+            if not np.any(mask):
+                continue
+            y_in_range = np.abs(y_data[mask])
+            if len(y_in_range) > 0:
+                local_max = np.max(y_in_range)
+                if local_max > max_abs_y:
+                    max_abs_y = local_max
+        
+        if max_abs_y == 0.0:
+            return
+        
+        if plot_type == 'spec':
+            ax.set_ylim(0, max_abs_y * 1.10)
+        else:
+            ax.set_ylim(-max_abs_y * 1.10, max_abs_y * 1.10)
+        canvas.draw_idle()
+    
+    def _on_date_filter_clicked(self):
+        """날짜 필터 버튼 클릭 처리."""
+        from_str = self.date_from.date().toString("yyyy-MM-dd")
+        to_str = self.date_to.date().toString("yyyy-MM-dd")
+        self.date_filter_changed.emit(from_str, to_str)
+    
+    def _on_span_selected(self, t_start: float, t_end: float):
+        """SpanSelector 시간 범위 선택 처리."""
+        if abs(t_end - t_start) > 0.001:
+            self.time_range_selected.emit(t_start, t_end)
     
     def _connect_signals(self):
         self.plot_btn.clicked.connect(self.compute_requested)
@@ -427,6 +626,15 @@ class SpectrumTabView(QWidget):
         self.select_all_btn.clicked.connect(self.Querry_list.selectAll)
         self.deselect_all_btn.clicked.connect(self.Querry_list.clearSelection)
         self.Querry_list.itemClicked.connect(lambda item: self.file_clicked.emit(item.text()))
+        
+        self.date_filter_btn.clicked.connect(self._on_date_filter_clicked)
+        self.refresh_button.clicked.connect(self.refresh_requested)
+        self.close_all_button.clicked.connect(self.close_all_windows_requested)
+        
+        self.wavecanvas.mpl_connect("button_press_event",
+                                     lambda event: self._on_canvas_click(event, 'wave'))
+        self.canvas.mpl_connect("button_press_event",
+                                 lambda event: self._on_canvas_click(event, 'spec'))
     
     def _connect_picking_events(self):
         self.cid_move = self.canvas.mpl_connect("motion_notify_event", self._on_mouse_move)
@@ -461,6 +669,7 @@ class SpectrumTabView(QWidget):
             self.ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
                           fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
         self.canvas.draw_idle()
+        self._apply_auto_y_scale('spec')
     
     def plot_waveform(self, time: List[float], amplitude: List[float],
                       label: str = '', color_index: int = 0, clear: bool = True):
@@ -471,12 +680,19 @@ class SpectrumTabView(QWidget):
         color = PLOT_COLORS[color_index % len(PLOT_COLORS)]
         self.waveax.plot(time, amplitude, color=color, linewidth=0.5, label=label, alpha=0.8)
         self.waveax.set_xlabel('Time (s)')
-        self.waveax.set_ylabel(VIEW_TYPE_LABELS.get(self._current_view_type, ''))
+        self.waveax.set_ylabel(WAVEFORM_Y_LABELS.get(self._current_view_type, ''))
         self.waveax.grid(True)
         if label:
             self.waveax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
                              fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
         self.wavecanvas.draw_idle()
+        self._apply_auto_y_scale('wave')
+        
+        self._span_selector = SpanSelector(
+            self.waveax, self._on_span_selected, 'horizontal',
+            useblit=True, props=dict(alpha=0.3, facecolor='yellow'),
+            interactive=True, drag_from_anywhere=True
+        )
     
     def set_view_type(self, view_type: str):
         self._current_view_type = view_type
@@ -493,6 +709,7 @@ class SpectrumTabView(QWidget):
         self.wavecanvas.draw()
     
     def set_files(self, files: List[str]):
+        self._all_files = list(files)
         self.Querry_list.clear()
         self.Querry_list.addItems(files)
     

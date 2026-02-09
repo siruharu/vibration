@@ -17,6 +17,7 @@ from vibration.core.services.file_service import FileService
 from vibration.core.domain.models import FFTResult, SignalData
 from vibration.presentation.views.tabs.spectrum_tab import SpectrumTabView
 from vibration.presentation.views.dialogs import ProgressDialog
+from vibration.presentation.views.dialogs.spectrum_window import SpectrumWindow
 from vibration.infrastructure.event_bus import get_event_bus
 
 logger = logging.getLogger(__name__)
@@ -46,6 +47,9 @@ class SpectrumPresenter:
         self._signal_data_list: List[SignalData] = []
         self._last_results: List[FFTResult] = []
         self._directory_path: str = ""
+        self._custom_sensitivity: Optional[float] = None
+        self._all_files: List[str] = []
+        self._spectrum_windows: List[SpectrumWindow] = []
         
         self._event_bus = get_event_bus()
         self._event_bus.files_loaded.connect(self._on_files_loaded)
@@ -60,6 +64,12 @@ class SpectrumPresenter:
         self.view.window_type_changed.connect(self._on_window_type_changed)
         self.view.next_file_requested.connect(self._on_next_file_requested)
         self.view.file_clicked.connect(self._on_file_clicked)
+        self.view.date_filter_changed.connect(self._on_date_filter_changed)
+        self.view.Sensitivity_edit.returnPressed.connect(self._on_sensitivity_changed)
+        self.view.refresh_requested.connect(self._on_compute_requested)
+        self.view.close_all_windows_requested.connect(self._on_close_all_windows)
+        self.view.axis_range_changed.connect(self._on_axis_range_changed)
+        self.view.time_range_selected.connect(self._on_time_range_selected)
     
     def load_data(self, data: np.ndarray, sampling_rate: float,
                   signal_type: str = 'ACC', label: str = '') -> None:
@@ -147,8 +157,12 @@ class SpectrumPresenter:
                         logger.warning(f"Invalid file: {filename}")
                         continue
                     
+                    raw_data = file_data['data']
+                    if self._custom_sensitivity is not None:
+                        raw_data = raw_data / (self._custom_sensitivity / 1000.0)
+                    
                     signal_data = SignalData(
-                        data=file_data['data'],
+                        data=raw_data,
                         sampling_rate=file_data['sampling_rate'],
                         signal_type='ACC',
                         channel=filename
@@ -297,7 +311,93 @@ class SpectrumPresenter:
     
     def _on_files_loaded(self, files: List[str]) -> None:
         logger.info(f"Received {len(files)} files from Data Query")
+        self._all_files = list(files)
         self.view.set_files(files)
+    
+    def _on_date_filter_changed(self, from_date: str, to_date: str) -> None:
+        filtered = []
+        for filename in self._all_files:
+            try:
+                date_part = filename.split('_')[0]
+                if len(filename.split('_')) >= 2:
+                    date_part = filename.split('_')[0]
+                if from_date <= date_part <= to_date:
+                    filtered.append(filename)
+            except (IndexError, ValueError):
+                filtered.append(filename)
+        
+        self.view.Querry_list.clear()
+        self.view.Querry_list.addItems(filtered)
+        logger.info(f"Date filter applied: {from_date} ~ {to_date}, {len(filtered)}/{len(self._all_files)} files")
+    
+    def _on_sensitivity_changed(self) -> None:
+        try:
+            value = float(self.view.Sensitivity_edit.text())
+            self._custom_sensitivity = value
+            logger.info(f"Custom sensitivity set: {value} mV/g")
+        except ValueError:
+            self._custom_sensitivity = None
+            logger.warning("Invalid sensitivity value, reset to default")
+    
+    def _on_close_all_windows(self) -> None:
+        for window in self._spectrum_windows:
+            window.close()
+        self._spectrum_windows.clear()
+        logger.info("All spectrum windows closed")
+    
+    def _on_axis_range_changed(self, plot_type: str, axis: str,
+                                val_min: float, val_max: float) -> None:
+        if plot_type == 'wave':
+            ax = self.view.waveax
+            canvas = self.view.wavecanvas
+        else:
+            ax = self.view.ax
+            canvas = self.view.canvas
+        
+        if axis == 'x':
+            ax.set_xlim(val_min, val_max)
+        else:
+            ax.set_ylim(val_min, val_max)
+        canvas.draw_idle()
+        logger.debug(f"Axis range set: {plot_type} {axis} [{val_min}, {val_max}]")
+    
+    def _on_time_range_selected(self, t_start: float, t_end: float) -> None:
+        if not self._signal_data_list:
+            logger.warning("No signal data for time range selection")
+            return
+        
+        signal = self._signal_data_list[0]
+        sr = signal.sampling_rate
+        i_start = int(t_start * sr)
+        i_end = int(t_end * sr)
+        i_start = max(0, i_start)
+        i_end = min(len(signal.data), i_end)
+        
+        if i_end - i_start < 2:
+            logger.warning("Selected time range too short")
+            return
+        
+        segment = signal.data[i_start:i_end]
+        
+        try:
+            result = self.fft_service.compute_spectrum(
+                data=segment,
+                view_type=self._current_view_type,
+                input_signal_type=signal.signal_type
+            )
+            
+            window = SpectrumWindow(t_start, t_end)
+            window.plot_spectrum(
+                frequencies=result.frequency.tolist(),
+                spectrum=result.spectrum.tolist(),
+                label=f"{signal.channel} [{t_start:.3f}s-{t_end:.3f}s]",
+                view_type=self._current_view_type
+            )
+            window.show()
+            self._spectrum_windows.append(window)
+            logger.info(f"Spectrum window created for range [{t_start:.3f}s, {t_end:.3f}s]")
+        except Exception as e:
+            logger.error(f"Error computing spectrum for time range: {e}")
     
     def get_last_results(self) -> List[FFTResult]:
         """마지막 연산 결과를 반환합니다."""

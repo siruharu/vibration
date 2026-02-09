@@ -7,7 +7,7 @@
 
 from dataclasses import dataclass, field
 from typing import Optional, Dict, Any, List, Tuple, Union
-from datetime import datetime
+from datetime import datetime, date
 
 import numpy as np
 
@@ -265,3 +265,77 @@ class FileMetadata:
     def has_sensitivity(self) -> bool:
         """감도 정의 여부를 확인합니다."""
         return self.sensitivity is not None and self.sensitivity > 0
+
+
+@dataclass
+class ProjectFileInfo:
+    """프로젝트 저장 시 개별 파일 정보."""
+    relative_path: str
+    date: str
+    time: str
+    channel: str = ''
+    sampling_rate: float = 0.0
+    sensitivity: str = ''
+    is_anomaly: bool = False
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'relative_path': self.relative_path,
+            'date': self.date,
+            'time': self.time,
+            'channel': self.channel,
+            'sampling_rate': self.sampling_rate,
+            'sensitivity': self.sensitivity,
+            'is_anomaly': self.is_anomaly,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ProjectFileInfo':
+        return cls(
+            relative_path=data.get('relative_path', ''),
+            date=data.get('date', ''),
+            time=data.get('time', ''),
+            channel=data.get('channel', ''),
+            sampling_rate=data.get('sampling_rate', 0.0),
+            sensitivity=data.get('sensitivity', ''),
+            is_anomaly=data.get('is_anomaly', False),
+        )
+
+
+@dataclass
+class ProjectData:
+    """프로젝트 저장/로드를 위한 데이터 컨테이너."""
+    name: str
+    description: str
+    created_at: str
+    parent_folder: str
+    measurement_type: str = 'Unknown'
+    files: List[ProjectFileInfo] = field(default_factory=list)
+    summary: Dict[str, Any] = field(default_factory=dict)
+    project_folder: str = ''
+
+    def to_dict(self) -> Dict[str, Any]:
+        return {
+            'name': self.name,
+            'description': self.description,
+            'created_at': self.created_at,
+            'parent_folder': self.parent_folder,
+            'measurement_type': self.measurement_type,
+            'files': [f.to_dict() for f in self.files],
+            'summary': self.summary,
+            'project_folder': self.project_folder,
+        }
+
+    @classmethod
+    def from_dict(cls, data: Dict[str, Any]) -> 'ProjectData':
+        files = [ProjectFileInfo.from_dict(f) for f in data.get('files', [])]
+        return cls(
+            name=data.get('name', ''),
+            description=data.get('description', ''),
+            created_at=data.get('created_at', ''),
+            parent_folder=data.get('parent_folder', ''),
+            measurement_type=data.get('measurement_type', 'Unknown'),
+            files=files,
+            summary=data.get('summary', {}),
+            project_folder=data.get('project_folder', ''),
+        )

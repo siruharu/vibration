@@ -7,6 +7,111 @@
 
 ---
 
+## 10. Time/Spectrum 플롯 성능 복원 — 배치 렌더링 + Next 캐시 (2026-02-10)
+
+### 10.1 변경 개요
+
+리팩토링 과정에서 깨진 레거시 플롯 동작을 복원했습니다:
+1. **Plot 버튼** — 파일 하나씩 `draw_idle()` 호출하며 그리던 것을 레거시처럼 모든 데이터를 먼저 계산한 뒤 한번에 렌더링
+2. **Next 버튼** — 모든 선택 파일을 매번 디스크에서 다시 읽고 FFT 재계산하던 것을 이미 계산된 결과를 유지하고 새 파일만 추가 계산
+3. **Y Auto 110% 제거** — 커스텀 110% 스케일을 제거하고 matplotlib 기본 autoscale로 복원
+
+| 항목 | 이전 (버그) | 이후 (레거시 복원) |
+|------|------------|-------------------|
+| **Plot 렌더링** | 파일마다 `draw_idle()` — N파일이면 2N번 호출 | 모든 계산 완료 후 `end_batch()`에서 2번만 호출 |
+| **Next 동작** | `_on_compute_requested()` 호출 → 전체 파일 재로드+재계산 | 기존 결과 유지, 새 파일 1개만 로드+계산+플롯 추가 |
+| **FFT 캐시** | 없음 — `_last_results = []` 매번 초기화 | `_computed_cache` 딕셔너리로 파일별 결과 보존 |
+| **Y Auto 110%** | `_apply_auto_y_scale()` — 최대값 × 1.10 강제 스케일 | 제거 — matplotlib 기본 autoscale |
+
+### 10.2 파일별 변경 상세
+
+#### 10.2.1 `vibration/presentation/presenters/spectrum_presenter.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_computed_cache: Dict[str, Tuple[SignalData, FFTResult]]` 인스턴스 변수 추가 |
+| `_on_compute_requested` | 수정 | 직접 파일 처리 루프 제거 → `_computed_cache.clear()` + `_load_and_plot_files()` 위임 |
+| `_load_and_plot_files` | **신규** | 2페이즈 공통 메서드 — Phase 1: 파일 로드+FFT 계산 축적, Phase 2: `begin_batch()` → 일괄 플롯 → `end_batch()` |
+| `_on_next_file_requested` | 수정 | `_on_compute_requested()` 호출 제거 → 캐시 확인 후 새 파일만 `_load_and_plot_files([새파일])` |
+
+**이전 (`_on_next_file_requested`):**
+```python
+def _on_next_file_requested(self) -> None:
+    # ... 다음 파일 선택 추가 ...
+    next_item.setSelected(True)
+    self._on_compute_requested()  # 전체 재계산
+```
+
+**이후:**
+```python
+def _on_next_file_requested(self) -> None:
+    # ... 다음 파일 선택 추가 ...
+    next_item.setSelected(True)
+
+    if next_filename in self._computed_cache:
+        return  # 이미 계산됨 — 스킵
+
+    self._load_and_plot_files([next_filename])  # 새 파일만 계산+플롯
+```
+
+**이전 (`_load_and_plot_files` — 구 `_on_compute_requested` 내부):**
+```python
+for idx, filename in enumerate(selected_files):
+    file_data = self.file_service.load_file(filepath)  # 디스크 I/O
+    result = self._compute_single_signal(...)            # FFT
+    self.view.plot_waveform(...)                          # draw_idle() 호출
+    self.view.plot_spectrum(...)                          # draw_idle() 호출
+    # → 파일마다 2번 draw_idle — 화면 깜빡임
+```
+
+**이후 (`_load_and_plot_files` 2페이즈):**
+```python
+# Phase 1: 계산 (draw 없음)
+for idx, filename in enumerate(filenames):
+    file_data = self.file_service.load_file(filepath)
+    result = self._compute_single_signal(...)
+    computed_batch.append((filename, signal_data, result))
+
+# Phase 2: 일괄 렌더링
+self.view.begin_batch()
+for filename, signal_data, result in computed_batch:
+    self.view.plot_waveform(...)   # draw_idle 억제됨
+    self.view.plot_spectrum(...)   # draw_idle 억제됨
+self.view.end_batch()              # 여기서만 draw_idle 2번
+```
+
+#### 10.2.2 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_batch_mode = False` 인스턴스 변수 추가 |
+| `begin_batch` | **신규** | `_batch_mode = True` 설정 — 이후 `draw_idle()` 호출 억제 |
+| `end_batch` | **신규** | `_batch_mode = False` 해제 → 범례 업데이트 + `draw_idle()` 최종 호출 + SpanSelector 생성 |
+| `_update_legend` | 수정 | `_batch_mode` 체크 — `True`이면 `canvas.draw_idle()` 스킵 |
+| `plot_waveform` | 수정 | `_batch_mode` 체크 — `True`이면 SpanSelector 생성 스킵 (`end_batch`에서 1회만 생성) |
+| `_apply_auto_y_scale` | **삭제** | Y Auto 110% 로직 전체 제거 (41줄) |
+| `plot_spectrum` | 수정 | `_apply_auto_y_scale('spec')` 호출 제거 |
+| `plot_waveform` | 수정 | `_apply_auto_y_scale('wave')` 호출 제거 |
+
+### 10.3 성능 영향
+
+| 시나리오 | 이전 | 이후 | 개선 |
+|----------|------|------|------|
+| Plot 10파일 — `draw_idle()` 횟수 | 20번 | 2번 | **10×** |
+| Next 5회 (10파일 선택 후) — 파일 로드+FFT | 75회 | 15회 | **5×** |
+| Next 1회 — 디스크 I/O | 기존 파일 전부 재로드 | 새 파일 1개만 | **N→1** |
+
+### 10.4 영향 범위
+
+| 레이어 | 영향 |
+|--------|------|
+| 프레젠터 (`spectrum_presenter.py`) | `_on_compute_requested`, `_on_next_file_requested` 수정, `_load_and_plot_files` 신규 |
+| 뷰 (`spectrum_tab.py`) | `begin_batch`/`end_batch` 신규, `_update_legend`·`plot_waveform` 배치 모드 대응, `_apply_auto_y_scale` 삭제 |
+| 도메인 모델 | ✅ 변경 없음 |
+| 서비스 레이어 | ✅ 변경 없음 |
+
+---
+
 ## 9. PyInstaller exe 빌드 안정화 (2026-02-09)
 
 ### 9.1 변경 개요

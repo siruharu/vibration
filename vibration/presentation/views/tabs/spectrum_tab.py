@@ -368,26 +368,41 @@ class SpectrumTabView(QWidget):
         wave_scale_widget = self._create_axis_controls('wave')
         spec_scale_widget = self._create_axis_controls('spec')
         
-        wave_splitter = QSplitter(Qt.Horizontal)
-        wave_splitter.addWidget(self.wavecanvas)
-        wave_splitter.addWidget(wave_scale_widget)
-        wave_splitter.setStretchFactor(0, 5)
-        wave_splitter.setStretchFactor(1, 1)
+        self._wave_splitter = QSplitter(Qt.Horizontal)
+        self._wave_splitter.addWidget(self.wavecanvas)
+        self._wave_splitter.addWidget(wave_scale_widget)
+        self._wave_splitter.setStretchFactor(0, 5)
+        self._wave_splitter.setStretchFactor(1, 1)
         
-        spec_splitter = QSplitter(Qt.Horizontal)
-        spec_splitter.addWidget(self.canvas)
-        spec_splitter.addWidget(spec_scale_widget)
-        spec_splitter.setStretchFactor(0, 5)
-        spec_splitter.setStretchFactor(1, 1)
+        self._spec_splitter = QSplitter(Qt.Horizontal)
+        self._spec_splitter.addWidget(self.canvas)
+        self._spec_splitter.addWidget(spec_scale_widget)
+        self._spec_splitter.setStretchFactor(0, 5)
+        self._spec_splitter.setStretchFactor(1, 1)
+        
+        self._syncing_splitters = False
+        self._wave_splitter.splitterMoved.connect(
+            lambda pos, idx: self._sync_splitter(self._wave_splitter, self._spec_splitter)
+        )
+        self._spec_splitter.splitterMoved.connect(
+            lambda pos, idx: self._sync_splitter(self._spec_splitter, self._wave_splitter)
+        )
         
         self.main_splitter = QSplitter(Qt.Vertical)
-        self.main_splitter.addWidget(wave_splitter)
-        self.main_splitter.addWidget(spec_splitter)
+        self.main_splitter.addWidget(self._wave_splitter)
+        self.main_splitter.addWidget(self._spec_splitter)
         self.main_splitter.setStretchFactor(0, 1)
         self.main_splitter.setStretchFactor(1, 1)
         
         self.waveform_plot = self.wavecanvas
         self.spectrum_plot = self.canvas
+    
+    def _sync_splitter(self, source: QSplitter, target: QSplitter):
+        if self._syncing_splitters:
+            return
+        self._syncing_splitters = True
+        target.setSizes(source.sizes())
+        self._syncing_splitters = False
     
     def _create_axis_controls(self, plot_type: str) -> QWidget:
         layout = QVBoxLayout()

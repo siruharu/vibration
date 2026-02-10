@@ -7,6 +7,69 @@
 
 ---
 
+## 16. Spectrum 시간 구간 선택 전체 신호 분석 + Splitter 동기화 (2026-02-10)
+
+### 16.1 변경 개요
+
+2가지 개선을 적용했습니다:
+
+1. **시간 구간 선택 시 전체 신호 분석** — Waveform에서 SpanSelector(노란 박스)로 시간 구간을 드래그하면, 기존에는 `_signal_data_list[0]`(첫 번째 파일)에 대해서만 FFT를 수행했습니다. 수정 후 선택된 모든 파일의 해당 구간에 대해 각각 FFT를 수행하고, 하나의 SpectrumWindow에 색상을 달리하여 오버레이합니다.
+2. **Splitter 동기화** — Waveform과 Spectrum 차트의 수평 Splitter(차트 ↔ 축 컨트롤 비율)가 독립적으로 움직이던 것을, 한쪽을 조절하면 다른 쪽도 동일 비율로 자동 동기화되도록 했습니다.
+
+| 항목 | 이전 (버그) | 이후 (수정) |
+|------|------------|------------|
+| **시간 구간 FFT** | `_signal_data_list[0]`만 사용 — 항상 첫 번째 파일만 분석 | `for signal in _signal_data_list:` — 모든 파일 순회 분석 |
+| **SpectrumWindow 색상** | 단일 파란색 (`'b-'`) | `color_index` 기반 6색 순환 (b, g, r, c, m, y) |
+| **SpectrumWindow 초기화** | 매번 `ax.clear()` | `clear=True` 첫 신호만, 이후 오버레이 |
+| **Splitter 동기화** | Waveform/Spectrum 독립 조작 | `splitterMoved` 시그널로 양방향 동기화 |
+
+### 16.2 파일별 변경 상세
+
+#### 16.2.1 `vibration/presentation/presenters/spectrum_presenter.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_on_time_range_selected` | 수정 | `signal = self._signal_data_list[0]` 단일 참조 → `for signal in self._signal_data_list:` 전체 순회. 각 신호별 FFT 수행 후 `color_index`와 `clear` 파라미터로 오버레이 플롯. `plotted_count == 0`일 때만 에러 시 window close. |
+
+#### 16.2.2 `vibration/presentation/views/dialogs/spectrum_window.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `PLOT_COLORS` | **신규** | 클래스 변수 `['b', 'g', 'r', 'c', 'm', 'y']` — 6색 순환 팔레트 |
+| `plot_spectrum` | 수정 | `color_index: int = 0`, `clear: bool = True` 파라미터 추가. `clear=True`일 때만 `ax.clear()` + 타이틀/hover_dot 초기화. `color_index % len(PLOT_COLORS)`로 색상 선택. |
+
+#### 16.2.3 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_setup_splitter_area` | 수정 | 지역변수 `wave_splitter`/`spec_splitter` → 인스턴스 변수 `_wave_splitter`/`_spec_splitter`로 변경. `_syncing_splitters` 재진입 방지 플래그 추가. `splitterMoved` 시그널 양방향 연결. |
+| `_sync_splitter` | **신규** | `source.sizes()` → `target.setSizes()`로 동기화. `_syncing_splitters` 플래그로 무한 루프 방지. |
+
+### 16.3 SpectrumWindow 색상 매핑
+
+| `color_index` | 색상 | 용도 |
+|---------------|------|------|
+| 0 | Blue (b) | 첫 번째 신호 |
+| 1 | Green (g) | 두 번째 신호 |
+| 2 | Red (r) | 세 번째 신호 |
+| 3 | Cyan (c) | 네 번째 신호 |
+| 4 | Magenta (m) | 다섯 번째 신호 |
+| 5 | Yellow (y) | 여섯 번째 신호 |
+| 6+ | 순환 반복 | `index % 6` |
+
+### 16.4 영향 범위
+
+| 레이어 | 영향 |
+|--------|------|
+| 프레젠터 (`spectrum_presenter.py`) | `_on_time_range_selected` 전체 신호 순회 |
+| 뷰 (`spectrum_tab.py`) | Splitter 인스턴스 변수 + 동기화 |
+| 다이얼로그 (`spectrum_window.py`) | `plot_spectrum` 오버레이 지원 |
+| 도메인 모델 | 변경 없음 |
+| 서비스 레이어 | 변경 없음 |
+| 인프라 | 변경 없음 |
+
+---
+
 ## 15. Window Function / View Type 변경 시 자동 재계산 제거 (2026-02-10)
 
 ### 15.1 변경 개요

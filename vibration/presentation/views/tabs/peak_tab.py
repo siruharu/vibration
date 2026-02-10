@@ -58,6 +58,7 @@ class PeakTabView(QWidget):
         self.peak_values = []
         self.peak_file_names = []
         self._all_files: List[str] = []
+        self._original_limits: dict = {}
         self._setup_ui()
         self._connect_signals()
         self._init_mouse_events()
@@ -211,6 +212,11 @@ class PeakTabView(QWidget):
         self.freq_range_inputmax2.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.freq_range_inputmax2, 4, 2)
         
+        self.reset_zoom_button = QPushButton("Reset Zoom")
+        self.reset_zoom_button.setMaximumSize(*WidgetSizes.option_control())
+        self.reset_zoom_button.setStyleSheet("background-color: lightgray;color: black;")
+        layout.addWidget(self.reset_zoom_button, 5, 0)
+        
         self.window_combo = self.Function_4
         self.overlap_combo = self.Overlap_Factor_4
         self.view_type_combo = self.select_pytpe4
@@ -260,6 +266,7 @@ class PeakTabView(QWidget):
         self.plot_button2.clicked.connect(self.compute_requested)
         self.save2_button.clicked.connect(self.save_requested)
         self.data_list_save_btn.clicked.connect(self._on_list_save_clicked)
+        self.reset_zoom_button.clicked.connect(self._reset_zoom)
         self.select_pytpe4.currentIndexChanged.connect(
             lambda: self.view_type_changed.emit(self.select_pytpe4.currentData())
         )
@@ -311,24 +318,45 @@ class PeakTabView(QWidget):
         self.peak_canvas.mpl_connect('key_press_event', self._on_key_press)
         self.peak_canvas.mpl_connect('scroll_event', self._on_scroll)
     
+    def _save_original_limits(self):
+        self._original_limits['peak'] = (self.peak_ax.get_xlim(), self.peak_ax.get_ylim())
+    
+    def _reset_zoom(self):
+        if 'peak' in self._original_limits:
+            xlim, ylim = self._original_limits['peak']
+            self.peak_ax.set_xlim(xlim)
+            self.peak_ax.set_ylim(ylim)
+            self.peak_canvas.draw_idle()
+    
     def _on_scroll(self, event):
         if event.inaxes != self.peak_ax:
             return
         
-        scale_factor = 0.85 if event.button == 'up' else 1.15
+        if 'peak' not in self._original_limits:
+            self._save_original_limits()
         
         xlim = self.peak_ax.get_xlim()
         ylim = self.peak_ax.get_ylim()
+        
+        if event.key == 'control':
+            shift = (xlim[1] - xlim[0]) * (0.1 if event.button == 'up' else -0.1)
+            self.peak_ax.set_xlim(xlim[0] + shift, xlim[1] + shift)
+            self.peak_canvas.draw_idle()
+            return
+        
+        if event.key == 'shift':
+            shift = (ylim[1] - ylim[0]) * (0.1 if event.button == 'up' else -0.1)
+            self.peak_ax.set_ylim(ylim[0] + shift, ylim[1] + shift)
+            self.peak_canvas.draw_idle()
+            return
+        
+        scale_factor = 0.85 if event.button == 'up' else 1.15
         xdata, ydata = event.xdata, event.ydata
         
-        x_left = xdata - (xdata - xlim[0]) * scale_factor
-        x_right = xdata + (xlim[1] - xdata) * scale_factor
-        self.peak_ax.set_xlim(x_left, x_right)
-        
-        y_bottom = ydata - (ydata - ylim[0]) * scale_factor
-        y_top = ydata + (ylim[1] - ydata) * scale_factor
-        self.peak_ax.set_ylim(y_bottom, y_top)
-        
+        self.peak_ax.set_xlim(xdata - (xdata - xlim[0]) * scale_factor,
+                              xdata + (xlim[1] - xdata) * scale_factor)
+        self.peak_ax.set_ylim(ydata - (ydata - ylim[0]) * scale_factor,
+                              ydata + (ylim[1] - ydata) * scale_factor)
         self.peak_canvas.draw_idle()
     
     def get_parameters(self) -> dict:
@@ -374,6 +402,7 @@ class PeakTabView(QWidget):
         self.peak_ax.legend(loc='upper left', bbox_to_anchor=(1.02, 1), 
                            fontsize=PlotFontSizes.LEGEND, frameon=True, fancybox=True, shadow=True)
         self.peak_canvas.draw_idle()
+        self._save_original_limits()
     
     def set_view_type(self, view_type: str):
         self._current_view_type = view_type

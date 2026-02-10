@@ -68,6 +68,7 @@ class SpectrumTabView(QWidget):
         self._all_files: List[str] = []
         self._span_selector = None
         self._batch_mode = False
+        self._original_limits: dict = {}
         self._setup_ui()
         self._connect_signals()
     
@@ -328,6 +329,11 @@ class SpectrumTabView(QWidget):
         self.close_all_button.setFixedSize(*WidgetSizes.spec_control())
         self.close_all_button.setStyleSheet(btn_style)
         layout.addWidget(self.close_all_button, 6, 1)
+        
+        self.reset_zoom_button = QPushButton("Reset Zoom")
+        self.reset_zoom_button.setFixedSize(*WidgetSizes.spec_control())
+        self.reset_zoom_button.setStyleSheet(btn_style)
+        layout.addWidget(self.reset_zoom_button, 7, 0)
         
         layout.setRowStretch(0, 1)
         layout.setRowStretch(1, 1)
@@ -622,24 +628,47 @@ class SpectrumTabView(QWidget):
         if abs(t_end - t_start) > 0.001:
             self.time_range_selected.emit(t_start, t_end)
     
+    def _save_original_limits(self, ax, key: str):
+        self._original_limits[key] = (ax.get_xlim(), ax.get_ylim())
+    
+    def _reset_zoom(self):
+        for key, (xlim, ylim) in self._original_limits.items():
+            ax = self.ax if key == 'spec' else self.waveax
+            canvas = self.canvas if key == 'spec' else self.wavecanvas
+            ax.set_xlim(xlim)
+            ax.set_ylim(ylim)
+            canvas.draw_idle()
+    
     def _on_scroll(self, event, ax, canvas):
         if event.inaxes != ax:
             return
         
-        scale_factor = 0.85 if event.button == 'up' else 1.15
+        key = 'spec' if ax == self.ax else 'wave'
+        if key not in self._original_limits:
+            self._save_original_limits(ax, key)
         
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
+        
+        if event.key == 'control':
+            shift = (xlim[1] - xlim[0]) * (0.1 if event.button == 'up' else -0.1)
+            ax.set_xlim(xlim[0] + shift, xlim[1] + shift)
+            canvas.draw_idle()
+            return
+        
+        if event.key == 'shift':
+            shift = (ylim[1] - ylim[0]) * (0.1 if event.button == 'up' else -0.1)
+            ax.set_ylim(ylim[0] + shift, ylim[1] + shift)
+            canvas.draw_idle()
+            return
+        
+        scale_factor = 0.85 if event.button == 'up' else 1.15
         xdata, ydata = event.xdata, event.ydata
         
-        x_left = xdata - (xdata - xlim[0]) * scale_factor
-        x_right = xdata + (xlim[1] - xdata) * scale_factor
-        ax.set_xlim(x_left, x_right)
-        
-        y_bottom = ydata - (ydata - ylim[0]) * scale_factor
-        y_top = ydata + (ylim[1] - ydata) * scale_factor
-        ax.set_ylim(y_bottom, y_top)
-        
+        ax.set_xlim(xdata - (xdata - xlim[0]) * scale_factor,
+                     xdata + (xlim[1] - xdata) * scale_factor)
+        ax.set_ylim(ydata - (ydata - ylim[0]) * scale_factor,
+                     ydata + (ylim[1] - ydata) * scale_factor)
         canvas.draw_idle()
     
     def _connect_signals(self):
@@ -656,6 +685,7 @@ class SpectrumTabView(QWidget):
         self.date_filter_btn.clicked.connect(self._on_date_filter_clicked)
         self.refresh_button.clicked.connect(self.refresh_requested)
         self.close_all_button.clicked.connect(self.close_all_windows_requested)
+        self.reset_zoom_button.clicked.connect(self._reset_zoom)
         
         # 채널 체크박스 - 파일 목록 필터
         self.checkBox.stateChanged.connect(self._on_channel_filter_changed)
@@ -748,6 +778,8 @@ class SpectrumTabView(QWidget):
         self._batch_mode = False
         self._update_legend(self.ax, self.figure, self.canvas)
         self._update_legend(self.waveax, self.waveform_figure, self.wavecanvas)
+        self._save_original_limits(self.ax, 'spec')
+        self._save_original_limits(self.waveax, 'wave')
         self._span_selector = SpanSelector(
             self.waveax, self._on_span_selected, 'horizontal',
             useblit=True, props=dict(alpha=0.3, facecolor='yellow'),

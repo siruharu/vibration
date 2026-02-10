@@ -53,13 +53,18 @@ class SpectrumWindow(QWidget):
         
         layout.addWidget(self.canvas)
     
+    PLOT_COLORS = ['b', 'g', 'r', 'c', 'm', 'y']
+
     def plot_spectrum(self, frequencies: List[float], spectrum: List[float],
-                      label: str = '', view_type: str = 'ACC'):
-        self.ax.clear()
-        self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
-        self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
+                      label: str = '', view_type: str = 'ACC',
+                      color_index: int = 0, clear: bool = True):
+        if clear:
+            self.ax.clear()
+            self.ax.set_title("Vibration Spectrum", fontsize=PlotFontSizes.TITLE)
+            self.hover_dot = self.ax.plot([], [], 'ko', markersize=6, alpha=0.5)[0]
         
-        self.ax.plot(frequencies, spectrum, 'b-', linewidth=0.5, label=label, alpha=0.8)
+        color = self.PLOT_COLORS[color_index % len(self.PLOT_COLORS)]
+        self.ax.plot(frequencies, spectrum, color=color, linewidth=0.5, label=label, alpha=0.8)
         self.ax.set_xlabel('Frequency (Hz)')
         self.ax.set_ylabel(VIEW_TYPE_LABELS.get(view_type, ''))
         self.ax.grid(True)

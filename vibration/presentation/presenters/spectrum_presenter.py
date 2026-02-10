@@ -420,38 +420,50 @@ class SpectrumPresenter:
             logger.warning("No signal data for time range selection")
             return
         
-        signal = self._signal_data_list[0]
-        sr = signal.sampling_rate
-        i_start = int(t_start * sr)
-        i_end = int(t_end * sr)
-        i_start = max(0, i_start)
-        i_end = min(len(signal.data), i_end)
+        window = SpectrumWindow(t_start, t_end)
+        plotted_count = 0
         
-        if i_end - i_start < 2:
-            logger.warning("Selected time range too short")
-            return
-        
-        segment = signal.data[i_start:i_end]
-        
-        try:
-            result = self.fft_service.compute_spectrum(
-                data=segment,
-                view_type=self._current_view_type,
-                input_signal_type=signal.signal_type
-            )
+        for signal in self._signal_data_list:
+            sr = signal.sampling_rate
+            i_start = int(t_start * sr)
+            i_end = int(t_end * sr)
+            i_start = max(0, i_start)
+            i_end = min(len(signal.data), i_end)
             
-            window = SpectrumWindow(t_start, t_end)
-            window.plot_spectrum(
-                frequencies=result.frequency.tolist(),
-                spectrum=result.spectrum.tolist(),
-                label=f"{signal.channel} [{t_start:.3f}s-{t_end:.3f}s]",
-                view_type=self._current_view_type
-            )
+            if i_end - i_start < 2:
+                logger.warning(f"Selected time range too short for {signal.channel}")
+                continue
+            
+            segment = signal.data[i_start:i_end]
+            
+            try:
+                result = self.fft_service.compute_spectrum(
+                    data=segment,
+                    view_type=self._current_view_type,
+                    input_signal_type=signal.signal_type
+                )
+                
+                window.plot_spectrum(
+                    frequencies=result.frequency.tolist(),
+                    spectrum=result.spectrum.tolist(),
+                    label=f"{signal.channel} [{t_start:.3f}s-{t_end:.3f}s]",
+                    view_type=self._current_view_type,
+                    color_index=plotted_count,
+                    clear=(plotted_count == 0)
+                )
+                plotted_count += 1
+            except Exception as e:
+                logger.error(f"Error computing spectrum for {signal.channel}: {e}")
+        
+        if plotted_count > 0:
             window.show()
             self._spectrum_windows.append(window)
-            logger.info(f"Spectrum window created for range [{t_start:.3f}s, {t_end:.3f}s]")
-        except Exception as e:
-            logger.error(f"Error computing spectrum for time range: {e}")
+            logger.info(
+                f"Spectrum window created for range [{t_start:.3f}s, {t_end:.3f}s] "
+                f"with {plotted_count} signals"
+            )
+        else:
+            window.close()
     
     def get_last_results(self) -> List[FFTResult]:
         """마지막 연산 결과를 반환합니다."""

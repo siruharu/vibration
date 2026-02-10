@@ -330,11 +330,6 @@ class SpectrumTabView(QWidget):
         self.close_all_button.setStyleSheet(btn_style)
         layout.addWidget(self.close_all_button, 6, 1)
         
-        self.reset_zoom_button = QPushButton("Reset Zoom")
-        self.reset_zoom_button.setFixedSize(*WidgetSizes.spec_control())
-        self.reset_zoom_button.setStyleSheet(btn_style)
-        layout.addWidget(self.reset_zoom_button, 7, 0)
-        
         layout.setRowStretch(0, 1)
         layout.setRowStretch(1, 1)
         layout.setColumnStretch(0, 1)
@@ -397,6 +392,14 @@ class SpectrumTabView(QWidget):
         layout = QVBoxLayout()
         layout.setContentsMargins(0, 20 if plot_type == 'wave' else 5, 0, 20 if plot_type == 'wave' else 10)
         layout.addStretch(2)
+        
+        if plot_type == 'spec':
+            reset_layout = QHBoxLayout()
+            reset_layout.addStretch()
+            self.reset_zoom_button = QPushButton("Reset Zoom")
+            self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
+            reset_layout.addWidget(self.reset_zoom_button)
+            layout.addLayout(reset_layout)
         
         x_layout = QHBoxLayout()
         x_layout2 = QHBoxLayout()
@@ -650,13 +653,15 @@ class SpectrumTabView(QWidget):
         xlim = ax.get_xlim()
         ylim = ax.get_ylim()
         
-        if event.key == 'control':
+        modifiers = QApplication.keyboardModifiers()
+        
+        if modifiers & Qt.ControlModifier:
             shift = (xlim[1] - xlim[0]) * (0.1 if event.button == 'up' else -0.1)
             ax.set_xlim(xlim[0] + shift, xlim[1] + shift)
             canvas.draw_idle()
             return
         
-        if event.key == 'shift':
+        if modifiers & Qt.ShiftModifier:
             shift = (ylim[1] - ylim[0]) * (0.1 if event.button == 'up' else -0.1)
             ax.set_ylim(ylim[0] + shift, ylim[1] + shift)
             canvas.draw_idle()

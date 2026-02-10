@@ -7,6 +7,92 @@
 
 ---
 
+## 12. 줌 리셋 + 스크롤 팬 기능 (2026-02-10)
+
+### 12.1 변경 개요
+
+Section 11에서 추가한 마우스 스크롤 줌 기능을 확장하여, 줌 상태를 원래대로 복원하는 Reset Zoom 버튼과 Ctrl/Shift+스크롤로 그래프를 상하좌우로 이동하는 팬 기능을 전 탭에 추가했습니다.
+
+| 항목 | 이전 | 이후 |
+|------|------|------|
+| **줌 리셋** | 없음 (축 수동 입력으로만 복원 가능) | Reset Zoom 버튼으로 원래 축 범위 즉시 복원 |
+| **수평 팬** | 없음 | Ctrl + 스크롤로 좌우 이동 (전 탭) |
+| **수직 팬** | 없음 | Shift + 스크롤로 상하 이동 (Spectrum/Trend/Peak) |
+| **Waterfall 팬** | 없음 | Ctrl + 스크롤 수평 이동만 (Y축 시간은 고정) |
+
+### 12.2 파일별 변경 상세
+
+#### 12.2.1 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_original_limits: dict = {}` 인스턴스 변수 추가 |
+| `_save_original_limits` | **신규** | `ax`와 `key` 파라미터로 spec/wave 각 캔버스의 xlim/ylim 저장 |
+| `_reset_zoom` | **신규** | `_original_limits` 딕셔너리 순회하며 spec/wave 축 범위 복원 |
+| `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬, Shift+스크롤=수직 팬 분기 추가; 최초 줌 시 원본 범위 자동 저장 |
+| `end_batch` | 수정 | 렌더링 완료 후 `_save_original_limits(ax, 'spec')`, `_save_original_limits(waveax, 'wave')` 호출 |
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 7, col 0) |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
+
+#### 12.2.2 `vibration/presentation/views/tabs/trend_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_original_limits: dict = {}` 인스턴스 변수 추가 |
+| `_save_original_limits` | **신규** | `trend_ax`의 xlim/ylim을 `_original_limits['trend']`에 저장 |
+| `_reset_zoom` | **신규** | `_original_limits['trend']`에서 축 범위 복원 |
+| `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬, Shift+스크롤=수직 팬 분기 추가; 최초 줌 시 원본 범위 자동 저장 |
+| `plot_trend` | 수정 | 렌더링 완료 후 `_save_original_limits()` 호출 |
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 5, col 0) |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
+
+#### 12.2.3 `vibration/presentation/views/tabs/peak_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_original_limits: dict = {}` 인스턴스 변수 추가 |
+| `_save_original_limits` | **신규** | `peak_ax`의 xlim/ylim을 `_original_limits['peak']`에 저장 |
+| `_reset_zoom` | **신규** | `_original_limits['peak']`에서 축 범위 복원 |
+| `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬, Shift+스크롤=수직 팬 분기 추가; 최초 줌 시 원본 범위 자동 저장 |
+| `plot_peak_trend` | 수정 | 렌더링 완료 후 `_save_original_limits()` 호출 |
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 5, col 0) |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
+
+#### 12.2.4 `vibration/presentation/views/tabs/waterfall_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `__init__` | 수정 | `_original_limits: dict = {}` 인스턴스 변수 추가 |
+| `_save_original_limits` | **신규** | `waterfall_ax`의 xlim/ylim을 `_original_limits['waterfall']`에 저장 |
+| `_reset_zoom` | **신규** | `_original_limits['waterfall']`에서 축 범위 복원 |
+| `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬 분기 추가 (수직 팬 없음 — Y축 시간 고정); 최초 줌 시 원본 범위 자동 저장 |
+| `_create_middle_panel` | 수정 | Reset Zoom 버튼 추가 (Band Trend 아래) |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
+
+### 12.3 스크롤 조작 매핑
+
+| 입력 | Spectrum (spec/wave) | Trend | Peak | Waterfall |
+|------|---------------------|-------|------|-----------|
+| 스크롤 업 | 줌 인 (XY) | 줌 인 (XY) | 줌 인 (XY) | 줌 인 (X만) |
+| 스크롤 다운 | 줌 아웃 (XY) | 줌 아웃 (XY) | 줌 아웃 (XY) | 줌 아웃 (X만) |
+| Ctrl + 스크롤 업 | 좌→우 팬 | 좌→우 팬 | 좌→우 팬 | 좌→우 팬 |
+| Ctrl + 스크롤 다운 | 우→좌 팬 | 우→좌 팬 | 우→좌 팬 | 우→좌 팬 |
+| Shift + 스크롤 업 | 위 팬 | 위 팬 | 위 팬 | ✗ (Y축 고정) |
+| Shift + 스크롤 다운 | 아래 팬 | 아래 팬 | 아래 팬 | ✗ (Y축 고정) |
+| Reset Zoom 버튼 | spec+wave 모두 복원 | trend 복원 | peak 복원 | waterfall 복원 |
+
+### 12.4 영향 범위
+
+| 레이어 | 영향 |
+|--------|------|
+| 뷰 (4개 탭) | 줌 리셋 + 팬 기능 추가, Reset Zoom 버튼 추가 |
+| 프레젠터 | ✅ 변경 없음 |
+| 도메인 모델 | ✅ 변경 없음 |
+| 서비스 레이어 | ✅ 변경 없음 |
+| 인프라 | ✅ 변경 없음 |
+
+---
+
 ## 11. 채널 필터링 + 스크롤 줌 + Trend/Peak 캐싱 (2026-02-10)
 
 ### 11.1 변경 개요
@@ -21,6 +107,9 @@
 | **채널 체크박스** | Waterfall만 동작, 나머지 3탭 UI만 존재 | 전 탭(4개) 동일하게 파일 목록 필터링 |
 | **마우스 줌** | 없음 (수동 축 입력만 가능) | 스크롤 업=줌인, 스크롤 다운=줌아웃 (커서 기준) |
 | **Trend/Peak 캐싱** | 매번 전체 FFT 재계산 | 파라미터 동일 시 캐시 히트 → 즉시 플롯 |
+
+- 추후 개선사항
+  - 선택된 리스트에서 일부 선택시 다시 전체를 불러오는 현상(파일하나하나 체크를 할지 현재 그룹체크를 그대로 할지)
 
 ### 11.2 파일별 변경 상세
 

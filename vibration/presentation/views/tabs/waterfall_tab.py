@@ -68,6 +68,7 @@ class WaterfallTabView(QWidget):
         """워터폴 탭 뷰를 초기화합니다."""
         super().__init__(parent)
         self._all_files: List[str] = []
+        self._original_limits: dict = {}
         self.hover_dot = None
         self.hover_pos = None
         self.waterfall_marker = None
@@ -276,6 +277,10 @@ class WaterfallTabView(QWidget):
         self.band_trend_button.setMaximumSize(*WidgetSizes.option_control())
         self.options2_layout.addWidget(self.band_trend_button)
         
+        self.reset_zoom_button = QPushButton("Reset Zoom")
+        self.reset_zoom_button.setMaximumSize(*WidgetSizes.option_control())
+        self.options2_layout.addWidget(self.reset_zoom_button)
+        
         # 레이아웃 설정
         self.options2_layout.setContentsMargins(0, 0, 0, 0)
         self.options2_layout.setSpacing(0)
@@ -404,6 +409,7 @@ class WaterfallTabView(QWidget):
         
         self.date_filter_btn2.clicked.connect(self._on_date_filter_clicked)
         self.band_trend_button.clicked.connect(self._on_band_trend_clicked)
+        self.reset_zoom_button.clicked.connect(self._reset_zoom)
     
     def _on_channel_filter_changed(self):
         """채널 체크박스 상태 변경을 처리 - 파일 목록을 필터링합니다."""
@@ -563,19 +569,36 @@ class WaterfallTabView(QWidget):
         self.waterfall_canvas.mpl_connect('button_press_event', self._on_mouse_click)
         self.waterfall_canvas.mpl_connect('scroll_event', self._on_scroll)
     
+    def _save_original_limits(self):
+        self._original_limits['waterfall'] = (self.waterfall_ax.get_xlim(), self.waterfall_ax.get_ylim())
+    
+    def _reset_zoom(self):
+        if 'waterfall' in self._original_limits:
+            xlim, ylim = self._original_limits['waterfall']
+            self.waterfall_ax.set_xlim(xlim)
+            self.waterfall_ax.set_ylim(ylim)
+            self.waterfall_canvas.draw_idle()
+    
     def _on_scroll(self, event):
         if event.inaxes != self.waterfall_ax:
             return
         
-        scale_factor = 0.85 if event.button == 'up' else 1.15
+        if 'waterfall' not in self._original_limits:
+            self._save_original_limits()
         
         xlim = self.waterfall_ax.get_xlim()
+        
+        if event.key == 'control':
+            shift = (xlim[1] - xlim[0]) * (0.1 if event.button == 'up' else -0.1)
+            self.waterfall_ax.set_xlim(xlim[0] + shift, xlim[1] + shift)
+            self.waterfall_canvas.draw_idle()
+            return
+        
+        scale_factor = 0.85 if event.button == 'up' else 1.15
         xdata = event.xdata
         
-        x_left = xdata - (xdata - xlim[0]) * scale_factor
-        x_right = xdata + (xlim[1] - xdata) * scale_factor
-        self.waterfall_ax.set_xlim(x_left, x_right)
-        
+        self.waterfall_ax.set_xlim(xdata - (xdata - xlim[0]) * scale_factor,
+                                   xdata + (xlim[1] - xdata) * scale_factor)
         self.waterfall_canvas.draw_idle()
     
     def set_picking_data(self, data: List[tuple[float, float, float, float, str]]):

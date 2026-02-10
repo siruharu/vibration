@@ -7,6 +7,38 @@
 
 ---
 
+## 15. Window Function / View Type 변경 시 자동 재계산 제거 (2026-02-10)
+
+### 15.1 변경 개요
+
+레거시에서는 Window Function(Hanning/Flattop 등)이나 View Type(ACC/VEL/DIS)를 변경해도 Plot 버튼을 눌러야만 반영되었으나, 리팩토링 과정에서 변경 즉시 `_on_compute_requested()`를 자동 호출하는 코드가 추가되어 있었습니다. 레거시 동작으로 복원합니다.
+
+| 항목 | 이전 (버그) | 이후 (레거시 복원) |
+|------|------------|-------------------|
+| **Window Function 변경** | 즉시 자동 재계산 + 그래프 갱신 | 값만 저장, Plot 버튼 시 반영 |
+| **View Type 변경** | 즉시 자동 재계산 + 그래프 갱신 | 값만 저장, Plot 버튼 시 반영 |
+
+### 15.2 파일별 변경 상세
+
+#### 15.2.1 `vibration/presentation/presenters/spectrum_presenter.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_on_window_type_changed` | 수정 | `if self._signal_data_list: self._on_compute_requested()` 제거 |
+| `_on_view_type_changed` | 수정 | `if self._signal_data_list: self._on_compute_requested()` 제거 |
+
+### 15.3 영향 범위
+
+| 레이어 | 영향 |
+|--------|------|
+| 프레젠터 (`spectrum_presenter.py`) | 자동 재계산 트리거 제거 |
+| 뷰 | ✅ 변경 없음 |
+| 도메인 모델 | ✅ 변경 없음 |
+| 서비스 레이어 | ✅ 변경 없음 |
+| 인프라 | ✅ 변경 없음 |
+
+---
+
 ## 14. SpanSelector 캐싱 버그 수정 + Reset Zoom 우클릭 메뉴 전환 (2026-02-10)
 
 ### 14.1 변경 개요

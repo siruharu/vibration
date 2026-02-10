@@ -275,9 +275,6 @@ class SpectrumPresenter:
         self.view.set_view_type(view_type_str)
         
         logger.debug(f"View type changed to {view_type_str}")
-        
-        if self._signal_data_list:
-            self._on_compute_requested()
     
     def _on_window_type_changed(self, window_type: str) -> None:
         """
@@ -293,9 +290,6 @@ class SpectrumPresenter:
         
         self.fft_service.window_type = normalized
         logger.debug(f"Window type changed to {normalized}")
-        
-        if self._signal_data_list:
-            self._on_compute_requested()
     
     def _on_next_file_requested(self) -> None:
         logger.debug("Next file requested")

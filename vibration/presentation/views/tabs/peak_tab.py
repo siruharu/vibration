@@ -71,8 +71,21 @@ class PeakTabView(QWidget):
         self._create_plot_area()
         
         # Create horizontal section: graph + Pick Data List
+        peak_controls_layout = QVBoxLayout()
+        peak_controls_layout.addStretch(2)
+        reset_layout = QHBoxLayout()
+        reset_layout.addStretch()
+        self.reset_zoom_button = QPushButton("Reset Zoom")
+        self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
+        reset_layout.addWidget(self.reset_zoom_button)
+        peak_controls_layout.addLayout(reset_layout)
+        peak_controls_layout.addStretch(2)
+        peak_controls_widget = QWidget()
+        peak_controls_widget.setLayout(peak_controls_layout)
+        
         peak_section_layout = QHBoxLayout()
         peak_section_layout.addLayout(self.peak_graph_layout, 3)
+        peak_section_layout.addWidget(peak_controls_widget, 0)
         data_list_layout = self._create_data_list_panel()
         peak_section_layout.addLayout(data_list_layout, 1)
         
@@ -212,11 +225,6 @@ class PeakTabView(QWidget):
         self.freq_range_inputmax2.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.freq_range_inputmax2, 4, 2)
         
-        self.reset_zoom_button = QPushButton("Reset Zoom")
-        self.reset_zoom_button.setMaximumSize(*WidgetSizes.option_control())
-        self.reset_zoom_button.setStyleSheet("background-color: lightgray;color: black;")
-        layout.addWidget(self.reset_zoom_button, 5, 0)
-        
         self.window_combo = self.Function_4
         self.overlap_combo = self.Overlap_Factor_4
         self.view_type_combo = self.select_pytpe4
@@ -338,13 +346,15 @@ class PeakTabView(QWidget):
         xlim = self.peak_ax.get_xlim()
         ylim = self.peak_ax.get_ylim()
         
-        if event.key == 'control':
+        modifiers = QApplication.keyboardModifiers()
+        
+        if modifiers & Qt.ControlModifier:
             shift = (xlim[1] - xlim[0]) * (0.1 if event.button == 'up' else -0.1)
             self.peak_ax.set_xlim(xlim[0] + shift, xlim[1] + shift)
             self.peak_canvas.draw_idle()
             return
         
-        if event.key == 'shift':
+        if modifiers & Qt.ShiftModifier:
             shift = (ylim[1] - ylim[0]) * (0.1 if event.button == 'up' else -0.1)
             self.peak_ax.set_ylim(ylim[0] + shift, ylim[1] + shift)
             self.peak_canvas.draw_idle()

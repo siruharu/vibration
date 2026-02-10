@@ -213,11 +213,6 @@ class TrendTabView(QWidget):
         self.freq_range_inputmax.setStyleSheet("background-color: lightgray;color: black;")
         layout.addWidget(self.freq_range_inputmax, 4, 2)
         
-        self.reset_zoom_button = QPushButton("Reset Zoom")
-        self.reset_zoom_button.setMaximumSize(*WidgetSizes.option_control())
-        self.reset_zoom_button.setStyleSheet("background-color: lightgray;color: black;")
-        layout.addWidget(self.reset_zoom_button, 5, 0)
-        
         layout.setRowStretch(0, 1)
         layout.setRowStretch(1, 1)
         layout.setColumnStretch(0, 1)
@@ -246,9 +241,22 @@ class TrendTabView(QWidget):
         
         trend_graph_layout.addWidget(self.trend_canvas)
         
+        trend_controls_layout = QVBoxLayout()
+        trend_controls_layout.addStretch(2)
+        reset_layout = QHBoxLayout()
+        reset_layout.addStretch()
+        self.reset_zoom_button = QPushButton("Reset Zoom")
+        self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
+        reset_layout.addWidget(self.reset_zoom_button)
+        trend_controls_layout.addLayout(reset_layout)
+        trend_controls_layout.addStretch(2)
+        trend_controls_widget = QWidget()
+        trend_controls_widget.setLayout(trend_controls_layout)
+        
         data_list_layout = self._create_data_list_panel()
         
         self.trend_section_layout.addLayout(trend_graph_layout, 3)
+        self.trend_section_layout.addWidget(trend_controls_widget, 0)
         self.trend_section_layout.addLayout(data_list_layout, 1)
         
         self.plot_widget = self.trend_canvas
@@ -416,13 +424,15 @@ class TrendTabView(QWidget):
         xlim = self.trend_ax.get_xlim()
         ylim = self.trend_ax.get_ylim()
         
-        if event.key == 'control':
+        modifiers = QApplication.keyboardModifiers()
+        
+        if modifiers & Qt.ControlModifier:
             shift = (xlim[1] - xlim[0]) * (0.1 if event.button == 'up' else -0.1)
             self.trend_ax.set_xlim(xlim[0] + shift, xlim[1] + shift)
             self.trend_canvas.draw_idle()
             return
         
-        if event.key == 'shift':
+        if modifiers & Qt.ShiftModifier:
             shift = (ylim[1] - ylim[0]) * (0.1 if event.button == 'up' else -0.1)
             self.trend_ax.set_ylim(ylim[0] + shift, ylim[1] + shift)
             self.trend_canvas.draw_idle()

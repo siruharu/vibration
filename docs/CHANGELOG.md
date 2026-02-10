@@ -7,11 +7,103 @@
 
 ---
 
+## 13. 스크롤 팬 수정 + Reset Zoom 버튼 위치 이동 (2026-02-10)
+
+### 13.1 변경 개요
+
+Section 12에서 추가한 스크롤 팬 기능과 Reset Zoom 버튼에 2가지 버그가 있어 수정했습니다:
+
+1. **스크롤 팬 미작동** — `event.key == 'control'` 방식은 matplotlib 이벤트의 키 상태를 사용하는데, macOS 등에서 키보드 수식자(modifier)가 정상 전달되지 않아 팬이 동작하지 않았습니다. `QApplication.keyboardModifiers()`로 Qt 네이티브 수식자 감지로 변경.
+2. **Reset Zoom 버튼 위치** — FFT Options 영역에 배치되어 있어 축 컨트롤(Auto X/Y/Set)과 분리되어 있었습니다. 사용자 요청에 따라 Auto Scale 버튼과 동일한 UI 스타일(`WidgetSizes.axis_button()`)로 축 컨트롤 영역에 이동.
+
+| 항목 | 이전 (버그) | 이후 (수정) |
+|------|------------|------------|
+| **팬 수식자 감지** | `event.key == 'control'` / `'shift'` (matplotlib 이벤트) | `QApplication.keyboardModifiers() & Qt.ControlModifier` / `Qt.ShiftModifier` (Qt 네이티브) |
+| **Reset Zoom 위치 (Spectrum)** | `_create_fft_options` row 7, col 0 | `_create_axis_controls` (spec), Auto X 위에 |
+| **Reset Zoom 위치 (Trend)** | `_create_fft_options` row 5, col 0 | 그래프와 Pick Data List 사이 별도 컨트롤 스트립 |
+| **Reset Zoom 위치 (Peak)** | `_create_fft_options` row 5, col 0 | 그래프와 Pick Data List 사이 별도 컨트롤 스트립 |
+| **Reset Zoom 위치 (Waterfall)** | `_create_middle_panel` (Band Trend 아래) | `_create_right_panel` 축 스케일 영역 최상단 |
+| **Reset Zoom 크기** | `WidgetSizes.option_control()` / `spec_control()` | `WidgetSizes.axis_button()` (Auto Scale과 동일) |
+
+### 13.2 파일별 변경 상세
+
+#### 13.2.1 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 제거 (row 7 삭제) |
+| `_create_axis_controls` | 수정 | `plot_type == 'spec'` 조건부로 Reset Zoom 버튼 추가 (Auto X 위, `axis_button()` 크기) |
+| `_on_scroll` | 수정 | `event.key == 'control'/'shift'` → `QApplication.keyboardModifiers() & Qt.ControlModifier/ShiftModifier` |
+
+#### 13.2.2 `vibration/presentation/views/tabs/trend_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 제거 (row 5 삭제) |
+| `_setup_ui` | 수정 | 그래프-Pick Data List 사이에 `trend_controls_widget` 삽입 (Reset Zoom 포함, `axis_button()` 크기) |
+| `_on_scroll` | 수정 | `event.key` → `QApplication.keyboardModifiers()` |
+
+#### 13.2.3 `vibration/presentation/views/tabs/peak_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 제거 (row 5 삭제) |
+| `_setup_ui` | 수정 | 그래프-Pick Data List 사이에 `peak_controls_widget` 삽입 (Reset Zoom 포함, `axis_button()` 크기) |
+| `_on_scroll` | 수정 | `event.key` → `QApplication.keyboardModifiers()` |
+
+#### 13.2.4 `vibration/presentation/views/tabs/waterfall_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| `_create_middle_panel` | 수정 | Reset Zoom 버튼 제거 (`options2_layout`에서 삭제) |
+| `_create_right_panel` | 수정 | 축 스케일 영역 최상단에 Reset Zoom 버튼 추가 (`axis_button()` 크기) |
+| `_on_scroll` | 수정 | `event.key == 'control'` → `QApplication.keyboardModifiers() & Qt.ControlModifier` |
+
+### 13.3 팬 수식자 감지 변경 (전 탭 공통)
+
+```python
+# 이전 (event.key 방식 — macOS에서 미작동)
+if event.key == 'control':
+    # 수평 팬
+if event.key == 'shift':
+    # 수직 팬
+
+# 이후 (Qt 네이티브 수식자 — 크로스 플랫폼)
+modifiers = QApplication.keyboardModifiers()
+if modifiers & Qt.ControlModifier:
+    # 수평 팬
+if modifiers & Qt.ShiftModifier:
+    # 수직 팬
+```
+
+### 13.4 Reset Zoom 버튼 배치 변경
+
+| 탭 | 이전 위치 | 이후 위치 | 레이아웃 |
+|----|----------|----------|---------|
+| Spectrum | `_create_fft_options` (row 7) | `_create_axis_controls` (spec only) | Auto X 위, `addLayout(reset_layout)` |
+| Trend | `_create_fft_options` (row 5) | `trend_controls_widget` | 그래프 ↔ Pick Data List 사이 세로 스트립 |
+| Peak | `_create_fft_options` (row 5) | `peak_controls_widget` | 그래프 ↔ Pick Data List 사이 세로 스트립 |
+| Waterfall | `_create_middle_panel` | `_create_right_panel` 최상단 | X 축 스케일 위 |
+
+### 13.5 영향 범위
+
+| 레이어 | 영향 |
+|--------|------|
+| 뷰 (4개 탭) | 팬 수식자 감지 수정, Reset Zoom 버튼 위치 이동 |
+| 프레젠터 | ✅ 변경 없음 |
+| 도메인 모델 | ✅ 변경 없음 |
+| 서비스 레이어 | ✅ 변경 없음 |
+| 인프라 | ✅ 변경 없음 |
+
+---
+
 ## 12. 줌 리셋 + 스크롤 팬 기능 (2026-02-10)
 
 ### 12.1 변경 개요
 
 Section 11에서 추가한 마우스 스크롤 줌 기능을 확장하여, 줌 상태를 원래대로 복원하는 Reset Zoom 버튼과 Ctrl/Shift+스크롤로 그래프를 상하좌우로 이동하는 팬 기능을 전 탭에 추가했습니다.
+
+> ⚠️ **이 섹션의 팬 구현(`event.key`)과 버튼 배치(FFT Options)는 Section 13에서 수정되었습니다.**
 
 | 항목 | 이전 | 이후 |
 |------|------|------|
@@ -31,7 +123,7 @@ Section 11에서 추가한 마우스 스크롤 줌 기능을 확장하여, 줌 �
 | `_reset_zoom` | **신규** | `_original_limits` 딕셔너리 순회하며 spec/wave 축 범위 복원 |
 | `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬, Shift+스크롤=수직 팬 분기 추가; 최초 줌 시 원본 범위 자동 저장 |
 | `end_batch` | 수정 | 렌더링 완료 후 `_save_original_limits(ax, 'spec')`, `_save_original_limits(waveax, 'wave')` 호출 |
-| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 7, col 0) |
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 7, col 0) → *Section 13에서 이동됨* |
 | `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
 
 #### 12.2.2 `vibration/presentation/views/tabs/trend_tab.py`
@@ -43,7 +135,7 @@ Section 11에서 추가한 마우스 스크롤 줌 기능을 확장하여, 줌 �
 | `_reset_zoom` | **신규** | `_original_limits['trend']`에서 축 범위 복원 |
 | `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬, Shift+스크롤=수직 팬 분기 추가; 최초 줌 시 원본 범위 자동 저장 |
 | `plot_trend` | 수정 | 렌더링 완료 후 `_save_original_limits()` 호출 |
-| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 5, col 0) |
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 5, col 0) → *Section 13에서 이동됨* |
 | `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
 
 #### 12.2.3 `vibration/presentation/views/tabs/peak_tab.py`
@@ -55,7 +147,7 @@ Section 11에서 추가한 마우스 스크롤 줌 기능을 확장하여, 줌 �
 | `_reset_zoom` | **신규** | `_original_limits['peak']`에서 축 범위 복원 |
 | `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬, Shift+스크롤=수직 팬 분기 추가; 최초 줌 시 원본 범위 자동 저장 |
 | `plot_peak_trend` | 수정 | 렌더링 완료 후 `_save_original_limits()` 호출 |
-| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 5, col 0) |
+| `_create_fft_options` | 수정 | Reset Zoom 버튼 추가 (row 5, col 0) → *Section 13에서 이동됨* |
 | `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
 
 #### 12.2.4 `vibration/presentation/views/tabs/waterfall_tab.py`
@@ -66,7 +158,7 @@ Section 11에서 추가한 마우스 스크롤 줌 기능을 확장하여, 줌 �
 | `_save_original_limits` | **신규** | `waterfall_ax`의 xlim/ylim을 `_original_limits['waterfall']`에 저장 |
 | `_reset_zoom` | **신규** | `_original_limits['waterfall']`에서 축 범위 복원 |
 | `_on_scroll` | 수정 | Ctrl+스크롤=수평 팬 분기 추가 (수직 팬 없음 — Y축 시간 고정); 최초 줌 시 원본 범위 자동 저장 |
-| `_create_middle_panel` | 수정 | Reset Zoom 버튼 추가 (Band Trend 아래) |
+| `_create_middle_panel` | 수정 | Reset Zoom 버튼 추가 (Band Trend 아래) → *Section 13에서 이동됨* |
 | `_connect_signals` | 수정 | `reset_zoom_button.clicked` → `_reset_zoom` 연결 |
 
 ### 12.3 스크롤 조작 매핑

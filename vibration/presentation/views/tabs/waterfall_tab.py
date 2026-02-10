@@ -277,10 +277,6 @@ class WaterfallTabView(QWidget):
         self.band_trend_button.setMaximumSize(*WidgetSizes.option_control())
         self.options2_layout.addWidget(self.band_trend_button)
         
-        self.reset_zoom_button = QPushButton("Reset Zoom")
-        self.reset_zoom_button.setMaximumSize(*WidgetSizes.option_control())
-        self.options2_layout.addWidget(self.reset_zoom_button)
-        
         # 레이아웃 설정
         self.options2_layout.setContentsMargins(0, 0, 0, 0)
         self.options2_layout.setSpacing(0)
@@ -299,6 +295,12 @@ class WaterfallTabView(QWidget):
     def _create_right_panel(self):
         """X/Z 축 스케일 컨트롤이 포함된 우측 패널을 생성합니다."""
         self.waterfall_scale_layout = QVBoxLayout()
+        
+        reset_layout = QHBoxLayout()
+        self.reset_zoom_button = QPushButton("Reset Zoom")
+        self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
+        reset_layout.addWidget(self.reset_zoom_button)
+        self.waterfall_scale_layout.addLayout(reset_layout)
         
         # X축 컨트롤
         self.x_scale_layout = QHBoxLayout()
@@ -588,7 +590,9 @@ class WaterfallTabView(QWidget):
         
         xlim = self.waterfall_ax.get_xlim()
         
-        if event.key == 'control':
+        modifiers = QApplication.keyboardModifiers()
+        
+        if modifiers & Qt.ControlModifier:
             shift = (xlim[1] - xlim[0]) * (0.1 if event.button == 'up' else -0.1)
             self.waterfall_ax.set_xlim(xlim[0] + shift, xlim[1] + shift)
             self.waterfall_canvas.draw_idle()

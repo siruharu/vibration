@@ -1,379 +1,183 @@
-# 음향 분석 프로그램 최적화 프로젝트
+# CNXMW Post Processor (가칭: CNAVE)
 
-## 📋 개요
+## 개요
 
-6,384줄의 레거시 음향/진동 분석 프로그램을 **UI 변경 없이** 10배 이상 성능 향상시키는 최적화 프로젝트입니다.
+장기 계측용 진동/음향 데이터의 후처리 및 분석 프로그램입니다. 6,384줄의 레거시 모놀리식 코드를 MVP(Model-View-Presenter) 아키텍처로 전면 재설계한 v2.0.0 버전입니다.
 
-### 주요 개선 사항
-
-| 항목 | 기존 | 개선 | 효과 |
-|------|------|------|------|
-| **파일 로딩** | 순차 처리 | 병렬 처리 (6 workers) | **6-10배 빠름** |
-| **테이블 렌더링** | QTableWidget | QTableView (가상화) | **10배 이상 빠름** |
-| **JSON 직렬화** | 기본 json 모듈 | 커스텀 인코더 | **NumPy 에러 해결** |
-| **그래프 디자인** | 구식 imshow | 현대적 Waterfall | **시각적 품질 향상** |
-| **크로스 플랫폼** | Windows 전용 | Mac/Windows 동시 지원 | **Mac 빌드 가능** |
+**주요 특징:**
+- MVP 패턴 기반 계층 분리 (core/presentation/infrastructure)
+- Qt 의존성 없는 비즈니스 로직 (core 레이어)
+- 병렬 RMS 계산 및 캐싱 시스템
+- 이상 파일 자동 감지 및 격리
+- 프로젝트 저장/로드 기능
+- 실시간 Progress 피드백
 
 ---
 
-## 📦 파일 구조
+## 프로젝트 구조
 
 ```
-project/
-├── file_loader_optimized.py      # 파일 로딩 최적화 (병렬 처리)
-├── json_handler.py                # JSON 직렬화 (NumPy 지원)
-├── table_optimizer.py             # 테이블 최적화 (가상화)
-├── visualization_enhanced.py      # 그래프 디자인 개선
-├── platform_config.py             # 크로스 플랫폼 설정
-├── auto_patcher.py                # 자동 패치 스크립트
-├── INTEGRATION_GUIDE.py           # 통합 가이드
-├── README.md                      # 이 파일
-├── requirements.txt               # 의존성
-│
-├── cn 3F trend.py                 # 원본 레거시 코드 (6,384줄)
-└── cn 3F trend_optimized.py       # 최적화된 버전 (생성 예정)
+vibration/
+├── core/                       # 비즈니스 로직 (Qt 의존성 없음)
+│   ├── domain/
+│   │   └── models.py           # 도메인 모델 (FFTResult, SignalData, TrendResult, ProjectData 등)
+│   └── services/               # 서비스 (FFT, 파일, 트렌드, 피크, 프로젝트)
+│       ├── fft_engine.py
+│       ├── fft_service.py
+│       ├── file_parser.py
+│       ├── file_service.py
+│       ├── trend_service.py
+│       ├── peak_service.py
+│       └── project_service.py
+├── presentation/               # UI 레이어 (PyQt5)
+│   ├── presenters/             # 프레젠터 (뷰-서비스 조율)
+│   ├── views/
+│   │   ├── tabs/               # 탭 뷰 (Data Query, Spectrum, Trend, Peak, Waterfall)
+│   │   ├── dialogs/            # 다이얼로그 (Progress, AxisRange, ListSave, SpectrumWindow)
+│   │   ├── main_window.py
+│   │   └── splash_screen.py
+│   └── models/
+│       └── file_list_model.py  # 테이블 데이터 모델
+├── infrastructure/             # 크로스커팅 (EventBus)
+├── legacy/                     # 레거시 코드 아카이브 (참조용)
+├── __init__.py                 # 패키지 초기화, get_resource_path()
+├── __main__.py                 # 엔트리포인트
+└── app.py                      # 애플리케이션 팩토리 (DI 와이어링)
 ```
 
 ---
 
-## 🚀 빠른 시작
+## 주요 기능
 
-### 1단계: 의존성 설치
+### 1. Data Query 탭
+- 엄마폴더 스캔 및 하위 파일 자동 탐색
+- 날짜 범위 필터링 (시작일/종료일)
+- 이상 파일 자동 감지 및 격리 (Abnormal Files 리스트)
+- 프로젝트 저장/로드 (JSON 형식)
+- 측정 타입 자동 판별 (진동/음향)
+- 파일 리스트 테이블 (QTableView 가상화)
+
+### 2. Time/Spectrum 탭
+- FFT 스펙트럼 분석 (scipy.signal.welch)
+- Waveform과 Spectrum 동시 표시
+- SpanSelector를 이용한 시간 구간 선택 후 FFT 팝업
+- Picking 기능 (파일 선택 시 자동 업데이트)
+- 마우스 줌/팬 (matplotlib NavigationToolbar)
+
+### 3. Overall RMS Trend 탭
+- 병렬 RMS 계산 (multiprocessing)
+- 실시간 Progress 다이얼로그
+- Picking 후 Detail Analysis (선택 파일 상세 분석)
+- 캐싱 시스템 (계산 결과 재사용)
+- 날짜 범위 필터링
+
+### 4. Band Peak Trend 탭
+- Overall RMS Trend와 동일한 구조
+- 주파수 대역별 피크 추출
+- 병렬 계산 및 캐싱
+- Picking 기능
+
+### 5. Waterfall 탭
+- 3D Waterfall 플롯 (STFT 기반)
+- Picking 기능 (파일 선택 시 업데이트)
+- Band Trend 분석
+- 날짜 범위 필터링
+- 캐싱 시스템
+
+---
+
+## 빠른 시작
+
+### 설치
 
 ```bash
+# 의존성 설치
 pip install -r requirements.txt
 ```
 
-### 2단계: 자동 패치 실행
+### 실행
 
 ```bash
-python auto_patcher.py "cn 3F trend.py"
+# 패키지 모듈로 실행
+python -m vibration
+
+# 또는 직접 실행
+python vibration/app.py
 ```
 
-이 명령은:
-- ✓ 원본 파일 백업 (자동)
-- ✓ Import 문 추가
-- ✓ Main 함수 초기화 코드 추가
-- ✓ JSON 함수 교체
-- ✓ `cn 3F trend_optimized.py` 생성
+---
 
-### 3단계: 수동 수정 (선택적)
+## Windows 실행 파일 빌드
 
-`INTEGRATION_GUIDE.py`를 참고하여 다음 부분을 수동으로 최적화:
-
-1. **파일 로딩 함수** (2300-2400 라인 근처)
-2. **테이블 생성 코드** (4500-4600 라인 근처)
-3. **Waterfall 그래프** (찾아서 교체)
-
-### 4단계: 테스트 실행
+### PyInstaller 빌드
 
 ```bash
-python "cn 3F trend_optimized.py"
+# Windows 환경에서 실행 (크로스 컴파일 불가)
+pyinstaller CNAVE_Analyzer.spec
 ```
+
+**주의사항:**
+- Windows 실행 파일은 반드시 Windows 환경에서 빌드해야 합니다
+- Mac/Linux에서 크로스 컴파일은 지원되지 않습니다
+- 빌드 시 `icn.ico` 아이콘 파일이 필요합니다
+- 결과물: `dist/CNAVE_Analyzer.exe`
 
 ---
 
-## 📖 상세 사용법
+## 기술 스택
 
-### 모듈별 사용 방법
-
-#### 1. 파일 로딩 최적화
-
-**기존 코드:**
-```python
-def load_files(self):
-    self.file_data = []
-    for filepath in self.selected_files:
-        data = self.load_single_file(filepath)  # 느림!
-        self.file_data.append(data)
-```
-
-**최적화 코드:**
-```python
-from file_loader_optimized import FileLoaderOptimized
-
-def load_files(self):
-    loader = FileLoaderOptimized(max_workers=6)
-    self.file_data = loader.load_files_parallel(self.selected_files)
-```
-
-#### 2. JSON 직렬화 (NumPy 배열 지원)
-
-**기존 코드 (에러 발생):**
-```python
-data = {'fft': np.array([1,2,3])}
-json.dump(data, f)  # ❌ TypeError!
-```
-
-**최적화 코드:**
-```python
-from json_handler import save_json, load_json
-
-save_json(data, 'output.json')  # ✓ NumPy 자동 처리
-data = load_json('output.json')  # ✓ NumPy 배열 복원
-```
-
-#### 3. 테이블 최적화
-
-**기존 코드:**
-```python
-table = QTableWidget(1000, 10)
-for r in range(1000):
-    for c in range(10):
-        table.setItem(r, c, QTableWidgetItem(str(data[r][c])))  # 매우 느림!
-```
-
-**최적화 코드:**
-```python
-from table_optimizer import OptimizedTableView
-
-table_data = np.array(data)
-headers = ['Col1', 'Col2', ...]
-table = OptimizedTableView(table_data, headers)  # 10배 이상 빠름!
-```
-
-#### 4. Waterfall 그래프 개선
-
-**기존 코드:**
-```python
-fig, ax = plt.subplots()
-ax.imshow(spectrogram, aspect='auto', cmap='jet')
-```
-
-**최적화 코드:**
-```python
-from visualization_enhanced import WaterfallPlotEnhanced
-
-plotter = WaterfallPlotEnhanced(style='modern')
-fig, ax = plotter.create_waterfall(
-    data=stft_result,
-    frequencies=freqs,
-    times=times,
-    title='진동 분석',
-    cmap='viridis',  # 현대적 컬러맵
-    freq_scale='log'
-)
-```
-
-#### 5. 크로스 플랫폼 설정
-
-**Main 함수 시작 부분에 추가:**
-```python
-from platform_config import initialize_platform_support
-
-if __name__ == "__main__":
-    initialize_platform_support()  # 폰트, DPI, 경로 자동 설정
-    app = QApplication(sys.argv)
-    # ...
-```
+| 항목 | 기술 | 버전 |
+|------|------|------|
+| 언어 | Python | 3.8+ |
+| GUI | PyQt5 | 5.15+ |
+| 수치 계산 | numpy | 1.21+ |
+| 신호 처리 | scipy | 1.7+ |
+| 시각화 | matplotlib | 3.5+ |
+| 데이터 처리 | pandas | 1.3+ |
+| 오디오 | soundfile, librosa | - |
+| 계측 데이터 | nptdms | - |
 
 ---
 
-## 🔧 고급 설정
+## 아키텍처 특징
 
-### 병렬 처리 워커 수 조정
+### MVP 패턴
+- **Model**: 도메인 모델 (core/domain/models.py)
+- **View**: PyQt5 뷰 (presentation/views/)
+- **Presenter**: 뷰-서비스 조율 (presentation/presenters/)
 
-```python
-# CPU 코어 수에 맞춰 조정
-loader = FileLoaderOptimized(max_workers=8)  # 8 코어
-```
+### 계층 분리
+- **core**: Qt 의존성 없는 순수 비즈니스 로직
+- **presentation**: UI 레이어 (PyQt5)
+- **infrastructure**: 크로스커팅 관심사 (EventBus)
 
-### 테이블 포맷터 커스터마이징
-
-```python
-table = OptimizedTableView(data, headers)
-
-# 퍼센트 포맷
-table.model_data.set_column_formatter(2, lambda x: f"{x*100:.1f}%")
-
-# 조건부 색상
-for row in range(table.rowCount()):
-    if data[row, 3] > threshold:
-        table.model_data.set_cell_color(row, 3, (255, 0, 0))  # 빨강
-```
-
-### 그래프 피크 하이라이트
-
-```python
-plotter = WaterfallPlotEnhanced()
-fig, ax = plotter.create_waterfall(...)
-
-# 피크 마커 추가
-plotter.add_peak_markers(
-    peak_times=[1.0, 2.5],
-    peak_freqs=[1000, 5000],
-    labels=['Peak 1', 'Peak 2']
-)
-
-# 주파수 대역 하이라이트
-plotter.add_frequency_band(500, 2000, label='관심 영역')
-```
+### 의존성 주입
+- ApplicationFactory에서 모든 의존성 와이어링
+- 서비스 간 느슨한 결합
+- 테스트 용이성 향상
 
 ---
 
-## ⚡ 성능 측정
+## 관련 문서
 
-### 벤치마크 코드
-
-```python
-import time
-
-# Before
-start = time.time()
-old_load_files()
-time_before = time.time() - start
-
-# After
-start = time.time()
-new_load_files()
-time_after = time.time() - start
-
-print(f"속도 향상: {time_before/time_after:.1f}배")
-```
-
-### 예상 성능 개선
-
-| 작업 | 파일 개수 | 기존 시간 | 최적화 시간 | 개선 |
-|------|-----------|-----------|-------------|------|
-| 파일 로딩 | 100개 | 30초 | 5초 | **6배** |
-| 파일 로딩 | 500개 | 150초 | 18초 | **8.3배** |
-| 테이블 렌더링 | 1만 행 | 25초 | 2초 | **12.5배** |
-| Waterfall 생성 | - | 3초 | 1초 | **3배** |
+- [ARCHITECTURE.md](docs/ARCHITECTURE.md) - 아키텍처 상세 설명
+- [CHANGELOG.md](docs/CHANGELOG.md) - 버전별 변경 이력
+- [MIGRATION_GUIDE.md](docs/MIGRATION_GUIDE.md) - 레거시 코드 마이그레이션 가이드
 
 ---
 
-## 🍎 Mac 빌드
+## 버전
 
-### PyInstaller로 .app 생성
-
-```bash
-# 1. PyInstaller 설치
-pip install pyinstaller
-
-# 2. 빌드
-pyinstaller --onefile --windowed \
-  --name="AudioAnalysis" \
-  --icon="icon.icns" \
-  "cn 3F trend_optimized.py"
-
-# 3. 결과물
-# dist/AudioAnalysis.app
-```
-
-### 폰트 번들링 (선택)
-
-```python
-# audio_analysis.spec 수정
-a = Analysis(
-    ['cn_3F_trend_optimized.py'],
-    datas=[
-        ('/System/Library/Fonts/Supplemental/AppleGothic.ttf', 'fonts'),
-    ],
-    ...
-)
-```
+**현재 버전: v2.0.0**
 
 ---
 
-## 🐛 문제 해결
+## 라이선스
 
-### 1. Import 에러
-```
-ModuleNotFoundError: No module named 'file_loader_optimized'
-```
-
-**해결:** 모든 최적화 모듈 파일이 같은 디렉토리에 있는지 확인
-
-### 2. 한글 깨짐 (Mac)
-```python
-# platform_config.py가 자동으로 처리하지만, 수동 설정 필요 시:
-import matplotlib.pyplot as plt
-plt.rcParams['font.family'] = 'AppleGothic'
-```
-
-### 3. JSON 로드 실패
-```
-JSONDecodeError: Expecting value
-```
-
-**해결:** 구 버전 JSON 파일은 자동 변환됨. 손상된 경우 재생성 필요
-
-### 4. 테이블 표시 안 됨
-```python
-# 레이아웃에 추가했는지 확인
-self.layout.addWidget(table)
-table.show()
-```
+MIT License
 
 ---
 
-## 📊 코드 품질
+## 개발자
 
-### 최적화 원칙
-
-1. **UI 불변성**: 기존 UI 코드는 절대 수정하지 않음
-2. **하위 호환성**: 기존 함수 시그니처 유지
-3. **점진적 적용**: 모듈별로 독립적 적용 가능
-4. **안전성 우선**: 백업 자동 생성, 에러 핸들링
-
-### 코드 스타일
-
-- PEP 8 준수
-- Type hints 사용
-- Docstring (Google 스타일)
-- Logging으로 디버그 정보 제공
-
----
-
-## 🤝 기여 방법
-
-### 버그 리포트
-
-1. 어떤 상황에서 발생했는지
-2. 에러 메시지 전체
-3. 사용 중인 OS (Mac/Windows)
-4. Python 버전
-
-### 개선 제안
-
-1. 어떤 부분을 개선하고 싶은지
-2. 왜 필요한지 (use case)
-3. 제안하는 구현 방법
-
----
-
-## 📝 라이선스
-
-MIT License (기존 코드 라이선스 확인 필요)
-
----
-
-## 👨‍💻 개발자
-
-- **최적화 모듈**: Claude (Anthropic)
-- **원본 코드**: [기존 개발자 정보]
-
----
-
-## 🔗 참고 자료
-
-- [NumPy 공식 문서](https://numpy.org/doc/)
-- [PyQt5 문서](https://www.riverbankcomputing.com/static/Docs/PyQt5/)
-- [Matplotlib 갤러리](https://matplotlib.org/stable/gallery/index.html)
-- [INTEGRATION_GUIDE.py](./INTEGRATION_GUIDE.py) - 상세 통합 가이드
-
----
-
-## ⏭️ 다음 단계
-
-- [ ] 파일 로딩 최적화 적용
-- [ ] 테이블 최적화 적용
-- [ ] JSON 핸들러 적용
-- [ ] Waterfall 그래프 개선
-- [ ] Mac에서 테스트
-- [ ] 성능 벤치마크
-- [ ] .app 빌드
-
----
-
-**질문이나 문제가 있으면 이슈를 등록해주세요!** 🚀
+Vibration Analysis Team

@@ -12,9 +12,10 @@ import matplotlib.dates as mdates
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QGridLayout, QVBoxLayout, QComboBox, QPushButton,
     QListWidget, QAbstractItemView, QCheckBox, QTextBrowser,
-    QTextEdit, QLineEdit, QSizePolicy, QApplication
+    QTextEdit, QLineEdit, QSizePolicy, QApplication, QMenu
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QEvent
+from PyQt5.QtGui import QCursor
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -71,21 +72,8 @@ class PeakTabView(QWidget):
         self._create_plot_area()
         
         # Create horizontal section: graph + Pick Data List
-        peak_controls_layout = QVBoxLayout()
-        peak_controls_layout.addStretch(2)
-        reset_layout = QHBoxLayout()
-        reset_layout.addStretch()
-        self.reset_zoom_button = QPushButton("Reset Zoom")
-        self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
-        reset_layout.addWidget(self.reset_zoom_button)
-        peak_controls_layout.addLayout(reset_layout)
-        peak_controls_layout.addStretch(2)
-        peak_controls_widget = QWidget()
-        peak_controls_widget.setLayout(peak_controls_layout)
-        
         peak_section_layout = QHBoxLayout()
         peak_section_layout.addLayout(self.peak_graph_layout, 3)
-        peak_section_layout.addWidget(peak_controls_widget, 0)
         data_list_layout = self._create_data_list_panel()
         peak_section_layout.addLayout(data_list_layout, 1)
         
@@ -274,7 +262,6 @@ class PeakTabView(QWidget):
         self.plot_button2.clicked.connect(self.compute_requested)
         self.save2_button.clicked.connect(self.save_requested)
         self.data_list_save_btn.clicked.connect(self._on_list_save_clicked)
-        self.reset_zoom_button.clicked.connect(self._reset_zoom)
         self.select_pytpe4.currentIndexChanged.connect(
             lambda: self.view_type_changed.emit(self.select_pytpe4.currentData())
         )
@@ -472,7 +459,14 @@ class PeakTabView(QWidget):
             if x is not None and len(x) > 0:
                 self._add_marker(x[0], y[0])
         elif event.button == 3:
-            self._clear_markers()
+            menu = QMenu(self)
+            reset_action = menu.addAction("Reset Zoom")
+            clear_action = menu.addAction("Clear Markers")
+            action = menu.exec_(QCursor.pos())
+            if action == reset_action:
+                self._reset_zoom()
+            elif action == clear_action:
+                self._clear_markers()
     
     def _on_key_press(self, event):
         if event.key == 'escape':

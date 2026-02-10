@@ -11,10 +11,10 @@ from typing import Tuple
 from PyQt5.QtWidgets import (
     QWidget, QGridLayout, QHBoxLayout, QVBoxLayout, QPushButton, QLabel,
     QListWidget, QListWidgetItem, QAbstractItemView, QCheckBox, QTextBrowser,
-    QTextEdit, QComboBox, QLineEdit, QSizePolicy, QApplication, QDateEdit
+    QTextEdit, QComboBox, QLineEdit, QSizePolicy, QApplication, QDateEdit, QMenu
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QDate
-from PyQt5.QtGui import QScreen, QColor, QFont
+from PyQt5.QtGui import QScreen, QColor, QFont, QCursor
 
 import numpy as np
 
@@ -296,12 +296,6 @@ class WaterfallTabView(QWidget):
         """X/Z 축 스케일 컨트롤이 포함된 우측 패널을 생성합니다."""
         self.waterfall_scale_layout = QVBoxLayout()
         
-        reset_layout = QHBoxLayout()
-        self.reset_zoom_button = QPushButton("Reset Zoom")
-        self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
-        reset_layout.addWidget(self.reset_zoom_button)
-        self.waterfall_scale_layout.addLayout(reset_layout)
-        
         # X축 컨트롤
         self.x_scale_layout = QHBoxLayout()
         self.x_scale_layout2 = QHBoxLayout()
@@ -411,7 +405,7 @@ class WaterfallTabView(QWidget):
         
         self.date_filter_btn2.clicked.connect(self._on_date_filter_clicked)
         self.band_trend_button.clicked.connect(self._on_band_trend_clicked)
-        self.reset_zoom_button.clicked.connect(self._reset_zoom)
+
     
     def _on_channel_filter_changed(self):
         """채널 체크박스 상태 변경을 처리 - 파일 목록을 필터링합니다."""
@@ -643,7 +637,14 @@ class WaterfallTabView(QWidget):
         if event.button == 1 and self.hover_pos is not None:
             self._add_picking_marker(self.hover_pos)
         elif event.button == 3:
-            self._clear_picking_markers()
+            menu = QMenu(self)
+            reset_action = menu.addAction("Reset Zoom")
+            clear_action = menu.addAction("Clear Picking")
+            action = menu.exec_(QCursor.pos())
+            if action == reset_action:
+                self._reset_zoom()
+            elif action == clear_action:
+                self._clear_picking_markers()
     
     def _add_picking_marker(self, data):
         plot_x, plot_y, freq, amp, fname = data[0], data[1], data[2], data[3], data[4]

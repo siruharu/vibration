@@ -522,15 +522,16 @@ class SpectrumTabView(QWidget):
         canvas.draw_idle()
     
     def _on_canvas_click(self, event, plot_type: str):
-        """캔버스 외곽 클릭 시 축 범위 입력 팝업 표시."""
-        if event.button == 3 and event.inaxes is not None and plot_type == 'wave':
+        """캔버스 외곽 클릭 시 축 범위 입력 팝업 또는 컨텍스트 메뉴 표시."""
+        if event.inaxes is not None:
+            return
+        
+        if event.button == 3:
             menu = QMenu(self)
             reset_action = menu.addAction("Reset Zoom")
             action = menu.exec_(QCursor.pos())
             if action == reset_action:
                 self._reset_zoom()
-            return
-        if event.inaxes is not None:
             return
         
         if plot_type == 'wave':
@@ -775,7 +776,11 @@ class SpectrumTabView(QWidget):
             )
     
     def begin_batch(self):
-        self._span_selector = None
+        if self._span_selector is not None:
+            self._span_selector.set_visible(False)
+            self._span_selector.set_active(False)
+            self._span_selector = None
+            self.wavecanvas.draw_idle()
         self._batch_mode = True
     
     def end_batch(self):
@@ -874,6 +879,15 @@ class SpectrumTabView(QWidget):
     
     def _on_mouse_click(self, event):
         if not event.inaxes:
+            if event.button == 3:
+                menu = QMenu(self)
+                reset_action = menu.addAction("Reset Zoom")
+                clear_action = menu.addAction("Clear Markers")
+                action = menu.exec_(QCursor.pos())
+                if action == reset_action:
+                    self._reset_zoom()
+                elif action == clear_action:
+                    self.clear_markers()
             return
         
         if event.button == 1:
@@ -881,14 +895,7 @@ class SpectrumTabView(QWidget):
             if x is not None and len(x) > 0 and y is not None and len(y) > 0:
                 self._add_marker(float(x[0]), float(y[0]))
         elif event.button == 3:
-            menu = QMenu(self)
-            reset_action = menu.addAction("Reset Zoom")
-            clear_action = menu.addAction("Clear Markers")
-            action = menu.exec_(QCursor.pos())
-            if action == reset_action:
-                self._reset_zoom()
-            elif action == clear_action:
-                self.clear_markers()
+            self.clear_markers()
     
     def _on_key_press(self, event):
         import numpy as np

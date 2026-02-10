@@ -469,6 +469,15 @@ class TrendTabView(QWidget):
     
     def _on_mouse_click(self, event):
         if not event.inaxes:
+            if event.button == 3:
+                menu = QMenu(self)
+                reset_action = menu.addAction("Reset Zoom")
+                clear_action = menu.addAction("Clear Markers")
+                action = menu.exec_(QCursor.pos())
+                if action == reset_action:
+                    self._reset_zoom()
+                elif action == clear_action:
+                    self._clear_markers()
             return
         
         if event.button == 1:
@@ -476,14 +485,7 @@ class TrendTabView(QWidget):
             if x is not None and len(x) > 0:
                 self._add_marker(x[0], y[0])
         elif event.button == 3:
-            menu = QMenu(self)
-            reset_action = menu.addAction("Reset Zoom")
-            clear_action = menu.addAction("Clear Markers")
-            action = menu.exec_(QCursor.pos())
-            if action == reset_action:
-                self._reset_zoom()
-            elif action == clear_action:
-                self._clear_markers()
+            self._clear_markers()
     
     def _on_key_press(self, event):
         if event.key == 'escape':

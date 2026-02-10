@@ -12,9 +12,10 @@ import matplotlib.dates as mdates
 from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QGridLayout, QVBoxLayout, QComboBox, QPushButton,
     QLabel, QListWidget, QAbstractItemView, QCheckBox, QTextBrowser,
-    QTextEdit, QLineEdit, QSizePolicy, QApplication
+    QTextEdit, QLineEdit, QSizePolicy, QApplication, QMenu
 )
 from PyQt5.QtCore import pyqtSignal, Qt
+from PyQt5.QtGui import QCursor
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -241,22 +242,9 @@ class TrendTabView(QWidget):
         
         trend_graph_layout.addWidget(self.trend_canvas)
         
-        trend_controls_layout = QVBoxLayout()
-        trend_controls_layout.addStretch(2)
-        reset_layout = QHBoxLayout()
-        reset_layout.addStretch()
-        self.reset_zoom_button = QPushButton("Reset Zoom")
-        self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
-        reset_layout.addWidget(self.reset_zoom_button)
-        trend_controls_layout.addLayout(reset_layout)
-        trend_controls_layout.addStretch(2)
-        trend_controls_widget = QWidget()
-        trend_controls_widget.setLayout(trend_controls_layout)
-        
         data_list_layout = self._create_data_list_panel()
         
         self.trend_section_layout.addLayout(trend_graph_layout, 3)
-        self.trend_section_layout.addWidget(trend_controls_widget, 0)
         self.trend_section_layout.addLayout(data_list_layout, 1)
         
         self.plot_widget = self.trend_canvas
@@ -288,7 +276,6 @@ class TrendTabView(QWidget):
         self.call_button.clicked.connect(self.load_data_requested)
         self.save_button.clicked.connect(self.save_requested)
         self.data_list_save_btn.clicked.connect(self._on_list_save_clicked)
-        self.reset_zoom_button.clicked.connect(self._reset_zoom)
         self.select_pytpe3.currentIndexChanged.connect(
             lambda: self.view_type_changed.emit(self.select_pytpe3.currentData())
         )
@@ -489,7 +476,14 @@ class TrendTabView(QWidget):
             if x is not None and len(x) > 0:
                 self._add_marker(x[0], y[0])
         elif event.button == 3:
-            self._clear_markers()
+            menu = QMenu(self)
+            reset_action = menu.addAction("Reset Zoom")
+            clear_action = menu.addAction("Clear Markers")
+            action = menu.exec_(QCursor.pos())
+            if action == reset_action:
+                self._reset_zoom()
+            elif action == clear_action:
+                self._clear_markers()
     
     def _on_key_press(self, event):
         if event.key == 'escape':

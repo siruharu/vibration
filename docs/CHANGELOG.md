@@ -7,6 +7,82 @@
 
 ---
 
+## 14. SpanSelector 캐싱 버그 수정 + Reset Zoom 우클릭 메뉴 전환 (2026-02-10)
+
+### 14.1 변경 개요
+
+1. **SpanSelector 노란 박스 캐싱 버그** — Waveform에서 시간 범위를 드래그 선택(노란 박스)한 상태에서 Next 버튼을 누르면 노란 박스가 그대로 캐싱되어 남아있는 버그를 수정했습니다.
+2. **Reset Zoom 버튼 → 우클릭 컨텍스트 메뉴** — 각 탭마다 다른 레이아웃에 억지로 배치되던 물리적 Reset Zoom 버튼을 제거하고, 그래프 위에서 우클릭 시 나타나는 컨텍스트 메뉴("Reset Zoom" / "Clear Markers")로 통합했습니다.
+
+| 항목 | 이전 (버그) | 이후 (수정) |
+|------|------------|------------|
+| **SpanSelector** | Next 시 노란 박스 유지됨 (캐싱) | `begin_batch()`에서 `_span_selector = None`으로 해제 |
+| **Reset Zoom 접근** | 물리적 QPushButton (탭마다 위치 상이) | 그래프 우클릭 → QMenu "Reset Zoom" |
+| **마커 클리어** | 우클릭 → 즉시 마커 클리어 | 우클릭 → QMenu "Clear Markers" 선택 시 클리어 |
+| **Waterfall 마커** | 우클릭 → 즉시 피킹 클리어 | 우클릭 → QMenu "Clear Picking" 선택 시 클리어 |
+
+### 14.2 파일별 변경 상세
+
+#### 14.2.1 `vibration/presentation/views/tabs/spectrum_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| (임포트) | 수정 | `QMenu` 추가, `from PyQt5.QtGui import QCursor` 추가 |
+| `begin_batch` | 수정 | `self._span_selector = None` 추가 — 기존 SpanSelector 해제 후 배치 시작 |
+| `_create_axis_controls` | 수정 | `plot_type == 'spec'` 조건부 Reset Zoom 버튼 블록 제거 |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked.connect` 제거 |
+| `_on_canvas_click` | 수정 | Waveform 캔버스 우클릭 시 QMenu("Reset Zoom") 표시 추가 |
+| `_on_mouse_click` | 수정 | Spectrum 캔버스 우클릭: 직접 `clear_markers()` → QMenu("Reset Zoom", "Clear Markers") |
+
+#### 14.2.2 `vibration/presentation/views/tabs/trend_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| (임포트) | 수정 | `QMenu` 추가, `from PyQt5.QtGui import QCursor` 추가 |
+| `_setup_ui` | 수정 | `trend_controls_widget` (Reset Zoom 버튼 포함) 전체 제거 |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked.connect` 제거 |
+| `_on_mouse_click` | 수정 | 우클릭: 직접 `_clear_markers()` → QMenu("Reset Zoom", "Clear Markers") |
+
+#### 14.2.3 `vibration/presentation/views/tabs/peak_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| (임포트) | 수정 | `QMenu` 추가, `from PyQt5.QtGui import QCursor` 추가 |
+| `_setup_ui` | 수정 | `peak_controls_widget` (Reset Zoom 버튼 포함) 전체 제거 |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked.connect` 제거 |
+| `_on_mouse_click` | 수정 | 우클릭: 직접 `_clear_markers()` → QMenu("Reset Zoom", "Clear Markers") |
+
+#### 14.2.4 `vibration/presentation/views/tabs/waterfall_tab.py`
+
+| 함수 | 변경 유형 | 상세 |
+|------|----------|------|
+| (임포트) | 수정 | `QMenu` 추가, `from PyQt5.QtGui import QCursor` 추가 |
+| `_create_right_panel` | 수정 | `reset_layout` + `reset_zoom_button` 제거 |
+| `_connect_signals` | 수정 | `reset_zoom_button.clicked.connect` 제거 |
+| `_on_mouse_click` | 수정 | 우클릭: 직접 `_clear_picking_markers()` → QMenu("Reset Zoom", "Clear Picking") |
+
+### 14.3 우클릭 컨텍스트 메뉴 구조
+
+| 탭 | 캔버스 | 메뉴 항목 |
+|----|--------|----------|
+| Spectrum (Spectrum 그래프) | `canvas` | "Reset Zoom", "Clear Markers" |
+| Spectrum (Waveform 그래프) | `wavecanvas` | "Reset Zoom" |
+| Trend | `trend_canvas` | "Reset Zoom", "Clear Markers" |
+| Peak | `peak_canvas` | "Reset Zoom", "Clear Markers" |
+| Waterfall | `waterfall_canvas` | "Reset Zoom", "Clear Picking" |
+
+### 14.4 영향 범위
+
+| 레이어 | 영향 |
+|--------|------|
+| 뷰 (4개 탭) | SpanSelector 해제, Reset Zoom 버튼 제거, 우클릭 컨텍스트 메뉴 추가 |
+| 프레젠터 | ✅ 변경 없음 |
+| 도메인 모델 | ✅ 변경 없음 |
+| 서비스 레이어 | ✅ 변경 없음 |
+| 인프라 | ✅ 변경 없음 |
+
+---
+
 ## 13. 스크롤 팬 수정 + Reset Zoom 버튼 위치 이동 (2026-02-10)
 
 ### 13.1 변경 개요

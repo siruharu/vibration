@@ -9,9 +9,10 @@ from PyQt5.QtWidgets import (
     QWidget, QHBoxLayout, QGridLayout, QVBoxLayout, QComboBox, QPushButton,
     QSplitter, QLabel, QListWidget, QAbstractItemView, QCheckBox, QTextBrowser,
     QTextEdit, QLineEdit, QSizePolicy, QApplication, QDateEdit, QInputDialog,
-    QDialog, QDialogButtonBox, QFormLayout, QMessageBox
+    QDialog, QDialogButtonBox, QFormLayout, QMessageBox, QMenu
 )
 from PyQt5.QtCore import pyqtSignal, Qt, QDate
+from PyQt5.QtGui import QCursor
 
 from matplotlib.figure import Figure
 from matplotlib.backends.backend_qt5agg import FigureCanvasQTAgg as FigureCanvas
@@ -393,14 +394,6 @@ class SpectrumTabView(QWidget):
         layout.setContentsMargins(0, 20 if plot_type == 'wave' else 5, 0, 20 if plot_type == 'wave' else 10)
         layout.addStretch(2)
         
-        if plot_type == 'spec':
-            reset_layout = QHBoxLayout()
-            reset_layout.addStretch()
-            self.reset_zoom_button = QPushButton("Reset Zoom")
-            self.reset_zoom_button.setMaximumSize(*WidgetSizes.axis_button())
-            reset_layout.addWidget(self.reset_zoom_button)
-            layout.addLayout(reset_layout)
-        
         x_layout = QHBoxLayout()
         x_layout2 = QHBoxLayout()
         y_layout = QHBoxLayout()
@@ -530,6 +523,13 @@ class SpectrumTabView(QWidget):
     
     def _on_canvas_click(self, event, plot_type: str):
         """캔버스 외곽 클릭 시 축 범위 입력 팝업 표시."""
+        if event.button == 3 and event.inaxes is not None and plot_type == 'wave':
+            menu = QMenu(self)
+            reset_action = menu.addAction("Reset Zoom")
+            action = menu.exec_(QCursor.pos())
+            if action == reset_action:
+                self._reset_zoom()
+            return
         if event.inaxes is not None:
             return
         
@@ -690,8 +690,6 @@ class SpectrumTabView(QWidget):
         self.date_filter_btn.clicked.connect(self._on_date_filter_clicked)
         self.refresh_button.clicked.connect(self.refresh_requested)
         self.close_all_button.clicked.connect(self.close_all_windows_requested)
-        self.reset_zoom_button.clicked.connect(self._reset_zoom)
-        
         # 채널 체크박스 - 파일 목록 필터
         self.checkBox.stateChanged.connect(self._on_channel_filter_changed)
         self.checkBox_2.stateChanged.connect(self._on_channel_filter_changed)
@@ -777,6 +775,7 @@ class SpectrumTabView(QWidget):
             )
     
     def begin_batch(self):
+        self._span_selector = None
         self._batch_mode = True
     
     def end_batch(self):
@@ -882,7 +881,14 @@ class SpectrumTabView(QWidget):
             if x is not None and len(x) > 0 and y is not None and len(y) > 0:
                 self._add_marker(float(x[0]), float(y[0]))
         elif event.button == 3:
-            self.clear_markers()
+            menu = QMenu(self)
+            reset_action = menu.addAction("Reset Zoom")
+            clear_action = menu.addAction("Clear Markers")
+            action = menu.exec_(QCursor.pos())
+            if action == reset_action:
+                self._reset_zoom()
+            elif action == clear_action:
+                self.clear_markers()
     
     def _on_key_press(self, event):
         import numpy as np

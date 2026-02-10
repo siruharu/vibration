@@ -633,18 +633,20 @@ class WaterfallTabView(QWidget):
     
     def _on_mouse_click(self, event):
         if not event.inaxes:
+            if event.button == 3:
+                menu = QMenu(self)
+                reset_action = menu.addAction("Reset Zoom")
+                clear_action = menu.addAction("Clear Picking")
+                action = menu.exec_(QCursor.pos())
+                if action == reset_action:
+                    self._reset_zoom()
+                elif action == clear_action:
+                    self._clear_picking_markers()
             return
         if event.button == 1 and self.hover_pos is not None:
             self._add_picking_marker(self.hover_pos)
         elif event.button == 3:
-            menu = QMenu(self)
-            reset_action = menu.addAction("Reset Zoom")
-            clear_action = menu.addAction("Clear Picking")
-            action = menu.exec_(QCursor.pos())
-            if action == reset_action:
-                self._reset_zoom()
-            elif action == clear_action:
-                self._clear_picking_markers()
+            self._clear_picking_markers()
     
     def _add_picking_marker(self, data):
         plot_x, plot_y, freq, amp, fname = data[0], data[1], data[2], data[3], data[4]
